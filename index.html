@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <title>Sampul</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-head">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div class="brand-text">
+          <h1>Sampul</h1>
+          <p id="brandSub">Palet &amp; tipografi per rasa</p>
+        </div>
+      </div>
+      <button class="icon-btn" data-act="help" title="Panduan rasa">?</button>
+    </header>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab is-active" data-tab="warna">Warna</button>
+      <button class="tab" data-tab="tipografi">Tipografi</button>
+      <button class="tab" data-tab="bangun">Bangun</button>
+    </nav>
+
+    <main class="pane" id="pane">
+
+      <!-- ============ WARNA ============ -->
+      <section class="tabpane is-active" data-pane="warna">
+        <div class="block">
+          <div class="block-head">
+            <h2>Kategori</h2>
+            <span class="hint" id="genreHint"></span>
+          </div>
+          <div class="chips" id="genreChips"></div>
+        </div>
+
+        <div class="block">
+          <div class="block-head">
+            <h2>Rasa yang dituju</h2>
+            <button class="link-btn" data-act="clear-feel">reset</button>
+          </div>
+          <div class="chips" id="feelChips"></div>
+        </div>
+
+        <div id="paletteHero"></div>
+
+        <div class="block">
+          <div class="block-head">
+            <h2>Pilihan lain</h2>
+            <span class="hint" id="paletteCount"></span>
+          </div>
+          <div class="stack" id="paletteList"></div>
+        </div>
+
+        <div class="block">
+          <button class="fold-head" data-act="toggle-fold" data-fold="genBody">
+            <span>Buat palet sendiri</span>
+            <span class="fold-caret">&#8250;</span>
+          </button>
+          <div class="fold-body" id="genBody">
+            <div class="field-row">
+              <label class="field">
+                <span>Warna dasar</span>
+                <input id="genHex" class="input" value="#A6392E" spellcheck="false" />
+              </label>
+              <label class="field">
+                <span>Harmoni</span>
+                <select id="genScheme" class="input select"></select>
+              </label>
+            </div>
+            <label class="field">
+              <span>Nada</span>
+              <select id="genTone" class="input select">
+                <option value="dark">Gelap</option>
+                <option value="light">Terang</option>
+              </select>
+            </label>
+            <div class="hue-dots" id="genHues"></div>
+            <button class="btn primary block-btn" data-act="generate">Buat palet</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ TIPOGRAFI ============ -->
+      <section class="tabpane" data-pane="tipografi">
+        <div class="block">
+          <div class="block-head">
+            <h2>Pasangan font</h2>
+            <span class="hint" id="typeCount"></span>
+          </div>
+          <p class="lede">Disaring dari kategori &amp; rasa yang sama. Tiap pasangan = 1 font judul + 1 font teks.</p>
+        </div>
+
+        <div id="pairingHero"></div>
+        <div class="stack" id="pairingList"></div>
+
+        <div class="block">
+          <div class="block-head"><h2>Font terpasang</h2></div>
+          <p class="lede" id="fontsStatus">Belum dibaca.</p>
+          <div class="btn-row">
+            <button class="btn small" data-act="load-fonts">Baca daftar font</button>
+            <button class="btn small" data-act="copy-font-list">Salin nama font</button>
+          </div>
+          <div id="overrideBox"></div>
+        </div>
+      </section>
+
+      <!-- ============ BANGUN ============ -->
+      <section class="tabpane" data-pane="bangun">
+        <div class="block">
+          <div class="cover-stage" id="coverStage"></div>
+          <p class="caption" id="coverCaption"></p>
+        </div>
+
+        <div class="block">
+          <label class="field"><span>Judul</span><input id="fTitle" class="input" /></label>
+          <label class="field"><span>Subjudul</span><input id="fSubtitle" class="input" /></label>
+          <label class="field"><span>Penulis</span><input id="fAuthor" class="input" /></label>
+          <label class="field"><span>Ukuran kanvas</span><select id="fPreset" class="input select"></select></label>
+          <label class="check"><input type="checkbox" id="fFill" /><span>Isi latar dengan warna dasar palet</span></label>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn primary" data-act="build-new">Bangun sampul baru</button>
+          <button class="btn" data-act="build-active">Teks ke dokumen aktif</button>
+        </div>
+
+        <div class="block">
+          <div class="block-head"><h2>Aksi cepat</h2></div>
+          <div class="btn-row wrap">
+            <button class="btn small" data-act="fg-base">FG = latar</button>
+            <button class="btn small" data-act="bg-accent">BG = aksen</button>
+            <button class="btn small" data-act="tint-text">Warnai teks terpilih</button>
+          </div>
+          <p class="lede" id="psState"></p>
+        </div>
+
+        <div class="log" id="log"></div>
+      </section>
+
+    </main>
+
+    <div class="statusbar"><span id="status">Siap</span></div>
+  </div>
+
+  <div class="overlay" id="helpOverlay">
+    <div class="overlay-card">
+      <div class="overlay-head">
+        <h2>Panduan rasa</h2>
+        <button class="icon-btn" data-act="close-help">&times;</button>
+      </div>
+      <div class="overlay-body">
+        <p class="lede">Rasa sebuah sampul ditentukan tiga hal: kontras, bentuk huruf, dan suhu warna. Aturan praktisnya:</p>
+        <ol class="rules">
+          <li><b>Tegas</b> &mdash; kontras tinggi, kapital sempit (Bebas, Anton, Archivo Black), aksen menyala.</li>
+          <li><b>Elegan</b> &mdash; serif ber-kontras tinggi (Playfair, Didone), ruang kosong lega, warna netral.</li>
+          <li><b>Hangat</b> &mdash; hue 20&deg;&ndash;60&deg; (krem, terakota, emas) dengan saturasi rendah.</li>
+          <li><b>Misterius</b> &mdash; latar sangat gelap, satu aksen terang, teks sedikit.</li>
+          <li><b>Minimal</b> &mdash; satu warna + dua ukuran huruf, tanpa ornamen.</li>
+          <li><b>Ceria</b> &mdash; pastel, bentuk membulat, huruf rounded (Baloo, Nunito).</li>
+          <li><b>Nostalgik</b> &mdash; kertas krem, tinta gelap hangat, serif lama, aksen pudar.</li>
+          <li><b>Romantis</b> &mdash; skrip tipis atau serif italic, blush/rose, banyak ruang napas.</li>
+          <li><b>Dramatis</b> &mdash; satu warna pekat + emas/perunggu, judul besar mendominasi.</li>
+          <li><b>Futuristik</b> &mdash; hitam/putih dingin + aksen sian, huruf geometris atau mono.</li>
+        </ol>
+        <p class="lede">Patokan angka: 60% latar, 30% blok, 10% aksen. Kontras judul minimal 3:1 (huruf besar) atau 4,5:1 (huruf kecil). Maksimal dua keluarga font per sampul.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>

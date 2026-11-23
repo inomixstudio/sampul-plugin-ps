@@ -1,0 +1,39 @@
+{
+  "id": "com.99desains.sampul",
+  "name": "Sampul - Palet & Tipografi",
+  "version": "1.2.0",
+  "main": "index.html",
+  "manifestVersion": 5,
+  "host": {
+    "app": "PS",
+    "minVersion": "24.0.0"
+  },
+  "requiredPermissions": {
+    "localFileSystem": "plugin"
+  },
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "sampulPanel",
+      "label": {
+        "default": "Sampul"
+      },
+      "minimumSize": {
+        "width": 320,
+        "height": 420
+      },
+      "maximumSize": {
+        "width": 1600,
+        "height": 1600
+      },
+      "preferredDockedSize": {
+        "width": 360,
+        "height": 780
+      },
+      "preferredFloatingSize": {
+        "width": 380,
+        "height": 820
+      }
+    }
+  ]
+}
