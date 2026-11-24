@@ -12,6 +12,7 @@ Alurnya: pilih **kategori** (sastra, thriller, anak, …) dan **rasa** yang ditu
 | Host teruji | Adobe Photoshop (Beta) **28.2** — UXP 10 |
 | Cara aktif | disalin ke `%APPDATA%\Adobe\UXP\Plugins\External\com.99desains.sampul` + **Developer Mode** |
 | Izin | hanya `clipboard: "readAndWrite"` (dipakai panel bawaan Adobe juga) — tidak sentuh disk, tidak ada jaringan, tanpa dependensi |
+| Aktif di | Photoshop Beta 28.2 — tercatat di log UXP: `Number of plugins added from user's fallback: 1`, tanpa error manifest/ikon |
 | Ukuran | ± 110 KB (5 file + 4 ikon + 1 skrip uji) |
 | Uji mandiri | `node scripts/selftest.js` → 60 pemeriksaan, tanpa Photoshop |
 | Master | folder ini. Salinan terinstal dibuat ulang dengan `npm run sync` |
@@ -28,7 +29,7 @@ Membuka panel: menu **Plugins → Sampul**. Kalau tidak muncul, restart Photosho
 | `index.html` | struktur panel: 3 tab (Warna, Tipografi, Bangun) + panduan rasa |
 | `styles.css` | tampilan panel; aman untuk UXP (tanpa grid/var CSS/gap, tanpa `<select>`) |
 | `main.js` | data + logika (bagian 1–8) |
-| `icons/` | `icon_D.png` / `icon_N.png` @1x @2x (20 px, RGBA) untuk menu Plugins |
+| `icons/` | `icon_D` / `icon_N` dalam `.png`, `@1x.png`, `@2x.png` (20/40 px RGBA) untuk menu Plugins |
 | `scripts/selftest.js` | uji regresi: matematika warna, integritas data, penyimpanan, render, bentuk deskriptor batchPlay |
 | `package.json` | `npm test`, `npm run check`, `npm run sync` |
 
@@ -165,7 +166,7 @@ Untuk pasangan font: objek dengan `heading` + `body` — `family`, `aliases` (na
 - *UXP*: semua `<select>`/`<option>` diganti chip + daftar tersaring; checkbox jadi tombol toggle; daftar font tidak lagi dirender penuh.
 - *Generator*: input netral tidak lagi menghasilkan hue acak; aksen dipaksa ≥ 4,5:1; redup ≥ 3:1; nama palet tidak kembar.
 - *Font*: rantai `aliases`/`boldPS`/`regularPS` diperkaya dengan keluarga yang lazim terpasang, dan `override` font kini tersimpan antar sesi; label kartu menunjukkan font pengganti yang akan dipakai.
-- *Packaging*: ikon panel (4 PNG), `developer.id`, izin file system dilepas, `README` disinkronkan, `package.json` + `scripts/selftest.js`, proyek masuk git.
+- *Packaging*: ikon panel 6 berkas (`.png`, `@1x`, `@2x` — UXP mencari nama `@1x` juga, kalau tidak ada ia mencatat "Scaled Icon not found" di log), `developer.id`, izin file system dilepas + `clipboard: readAndWrite`, `README` disinkronkan, `package.json` + `scripts/selftest.js`, proyek masuk git.
 
 **1.0.0** — 28 palet kurasi, 19 pasangan font, 10 kategori, 10 rasa, generator OKLCH, uji kontras WCAG, pratinjau sampul hidup, 5 aksi Photoshop.
 

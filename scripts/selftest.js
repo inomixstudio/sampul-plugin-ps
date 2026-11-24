@@ -275,7 +275,9 @@ t("manifest: tanpa izin file system, izin clipboard sesuai panel bawaan Adobe",
   man.requiredPermissions.localFileSystem === undefined && man.requiredPermissions.clipboard === "readAndWrite",
   "-> " + JSON.stringify(man.requiredPermissions));
 t("manifest punya ikon", Array.isArray(man.icons) && man.icons.length === 2);
-t("file ikon ada", ["icon_D.png", "icon_D@2x.png", "icon_N.png", "icon_N@2x.png"].every(function (f) { return fs.existsSync(path.join(ROOT, "icons", f)); }));
+t("file ikon ada (termasuk varian @1x yang dicari UXP)",
+  ["icon_D.png", "icon_D@1x.png", "icon_D@2x.png", "icon_N.png", "icon_N@1x.png", "icon_N@2x.png"]
+    .every(function (f) { return fs.existsSync(path.join(ROOT, "icons", f)); }));
 t("host berupa objek (bukan array)", !Array.isArray(man.host) && man.host.app === "PS");
 
 console.log("\n" + "-".repeat(52));

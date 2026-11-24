@@ -88,8 +88,13 @@ fs.mkdirSync(outDir, { recursive: true });
 for (const [base, pal] of Object.entries(sets)) {
   for (const [scale, size] of [[1, 20], [2, 40]]) {
     const buf = png(size, size, draw(size, pal));
-    const file = path.join(outDir, base + (scale === 2 ? "@2x.png" : ".png"));
-    fs.writeFileSync(file, buf);
-    console.log(file, buf.length + " B", size + "x" + size);
+    /* UXP mencari "icon_D.png" DAN "icon_D@1x.png"; kalau @1x tidak ada ia
+       mencatat "Scaled Icon ... not found" di log UXP Photoshop. */
+    const names = scale === 1 ? [base + ".png", base + "@1x.png"] : [base + "@2x.png"];
+    for (const name of names) {
+      const file = path.join(outDir, name);
+      fs.writeFileSync(file, buf);
+      console.log(file, buf.length + " B", size + "x" + size);
+    }
   }
 }
