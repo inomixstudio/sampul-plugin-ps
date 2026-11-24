@@ -17,6 +17,8 @@
 
 /* ============================ 1. DATA ============================ */
 
+const APP_VERSION = "1.4.0";
+
 const GENRES = [
   { id: "sastra",   label: "Sastra",    hint: "Fiksi literer, novel terjemahan" },
   { id: "thriller", label: "Thriller",  hint: "Misteri, kriminal, suspense" },
@@ -60,12 +62,82 @@ const SCHEMES = {
 };
 
 const PRESETS = {
-  "6x9":     { label: "6 x 9 in (novel)",      w: 1800, h: 2700, dpi: 300 },
-  "5.5x8.5": { label: "5,5 x 8,5 in (novel)",  w: 1650, h: 2550, dpi: 300 },
-  "a5":      { label: "A5 / 148 x 210 mm",     w: 1748, h: 2480, dpi: 300 },
-  "5x8":     { label: "5 x 8 in",              w: 1500, h: 2400, dpi: 300 },
-  "ebook":   { label: "E-book 1600 x 2560 px", w: 1600, h: 2560, dpi: 300 }
+  "6x9":     { label: "6 x 9 in (novel)",      w: 1800, h: 2700, dpi: 300, trimIn: [6, 9] },
+  "5.5x8.5": { label: "5,5 x 8,5 in (novel)",  w: 1650, h: 2550, dpi: 300, trimIn: [5.5, 8.5] },
+  "a5":      { label: "A5 / 148 x 210 mm",     w: 1748, h: 2480, dpi: 300, trimIn: null },
+  "5x8":     { label: "5 x 8 in",              w: 1500, h: 2400, dpi: 300, trimIn: [5, 8] },
+  "ebook":   { label: "E-book 1600 x 2560 px", w: 1600, h: 2560, dpi: 300, trimIn: null }
 };
+
+/* ---- sampul liput penuh: kertas, lebarkan jilid, lalu bleed ---- */
+
+/* Tebal per halaman dari tabel KDP (satuan mm/halaman). Cetak offset lain bisa beda,
+   jadi angka ini dipakai sebagai patokan, bukan jaminan. */
+const PAPERS = {
+  putih: { label: "Kertas putih", mmPerPage: 0.0635, note: "0,0025 in/halaman (KDP)" },
+  krem:  { label: "Kertas krem",  mmPerPage: 0.0794, note: "0,003125 in/halaman (KDP)" },
+  warna: { label: "Warna premium", mmPerPage: 0.1016, note: "0,004 in/halaman (KDP)" }
+};
+
+const WRAP_FORMATS = {
+  kdp:      { label: "KDP paperback", bleed: "in125", minPages: 24, spineTextPages: 100, barcodeIn: [2, 1.2] },
+  bookbaby: { label: "BookBaby",      bleed: "in125", minPages: 24, spineTextPages: 80,  barcodeIn: [2, 1.2] },
+  offset:   { label: "Offset umum",   bleed: "b3",    minPages: 16, spineTextPages: 80,  barcodeIn: [2, 1.2] }
+};
+
+const BLEEDS = {
+  none:  { label: "Tanpa bleed", mm: 0 },
+  b3:    { label: "3 mm",        mm: 3 },
+  b5:    { label: "5 mm",        mm: 5 },
+  in125: { label: "0,125 in",    mm: 3.175 }
+};
+
+const MM_IN = 25.4;
+
+/* Geometri murni: semua dalam piksel pada dpi preset, plus pembacaan mm/in. */
+function wrapGeom() {
+  var preset = PRESETS[state.cover.preset] || PRESETS["6x9"];
+  var w = state.wrap;
+  var paper = PAPERS[w.paper] || PAPERS.putih;
+  var fmt = WRAP_FORMATS[w.format] || WRAP_FORMATS.kdp;
+  var bleed = BLEEDS[w.bleed] || BLEEDS.none;
+  var dpi = preset.dpi || 300;
+  var pages = clamp(Math.round(Number(w.pages) || 0), 0, 3000);
+
+  var pxPerMm = dpi / MM_IN;
+  var spineMm = paper.mmPerPage * pages;
+  var spinePx = Math.round(spineMm * pxPerMm);
+  var bleedPx = Math.round(bleed.mm * pxPerMm);
+  var trimW = preset.w, trimH = preset.h;
+  var totalW = bleedPx * 2 + trimW * 2 + spinePx;
+  var totalH = bleedPx * 2 + trimH;
+
+  var back = { x0: bleedPx, x1: bleedPx + trimW };
+  var spine = { x0: back.x1, x1: back.x1 + spinePx };
+  var front = { x0: spine.x1, x1: spine.x1 + trimW };
+
+  var barcodeW = Math.round((fmt.barcodeIn[0] || 2) * dpi);
+  var barcodeH = Math.round((fmt.barcodeIn[1] || 1.2) * dpi);
+  var barcodePad = Math.round(0.25 * dpi);
+
+  var warn = [];
+  if (pages < fmt.minPages) warn.push("Halaman kurang dari minimum " + fmt.minPages + " untuk " + fmt.label + ".");
+  if (w.spine && pages < fmt.spineTextPages) warn.push("Jilid " + spineMm.toFixed(1) + " mm terlalu sempit untuk teks (umumnya butuh " + fmt.spineTextPages + " halaman).");
+  if (!bleed.mm) warn.push("Bleed 0: tepi tidak menyisakan kertas potong.");
+  if (trimW * 2 + spinePx > 8000) warn.push("Lebar sheet sangat besar; komputer lama bisa lambat.");
+
+  return {
+    dpi: dpi, pages: pages, paper: paper, format: fmt, bleed: bleed,
+    trimW: trimW, trimH: trimH, spinePx: spinePx, spineMm: spineMm, spineIn: spineMm / MM_IN,
+    bleedPx: bleedPx, totalW: totalW, totalH: totalH,
+    back: back, spine: spine, front: front,
+    barcode: { w: barcodeW, h: barcodeH, pad: barcodePad, x0: back.x0 + barcodePad, y0: totalH - bleedPx - barcodePad - barcodeH },
+    spineTextOk: pages >= fmt.spineTextPages,
+    mm: { totalW: totalW / pxPerMm, totalH: totalH / pxPerMm, trimW: trimW / pxPerMm, trimH: trimH / pxPerMm, bleed: bleed.mm },
+    inch: { totalW: totalW / dpi, totalH: totalH / dpi },
+    warnings: warn
+  };
+}
 
 /* Palet kurasi: 5 peran warna + catatan kenapa terasa begitu. */
 const PALETTES = [
@@ -568,6 +640,67 @@ function uniqueName(name, list) {
 }
 
 
+/* Ekstraksi warna: kelompokkan sampel piksel jadi 5 peran palet.
+   Murni dan deterministik supaya bisa diuji tanpa Photoshop. */
+function paletteFromSamples(hexes) {
+  var list = (hexes || []).map(normHex).filter(Boolean);
+  if (!list.length) return null;
+
+  /* Kuantisasi 8 level per kanal supaya gradasi lembut tidak pecah jadi 100 warna. */
+  var buckets = {};
+  list.forEach(function (h) {
+    var c = hexToRgb(h);
+    var key = (c.r >> 5) + "-" + (c.g >> 5) + "-" + (c.b >> 5);
+    if (!buckets[key]) buckets[key] = { n: 0, r: 0, g: 0, b: 0 };
+    var b = buckets[key];
+    b.n++; b.r += c.r; b.g += c.g; b.b += c.b;
+  });
+  var uniq = [];
+  Object.keys(buckets).map(function (k) {
+    var b = buckets[k];
+    return { n: b.n, hex: rgbToHex(Math.round(b.r / b.n), Math.round(b.g / b.n), Math.round(b.b / b.n)) };
+  }).sort(function (a, b) { return b.n - a.n; }).forEach(function (o) {
+    if (!uniq.some(function (u) { return u.hex === o.hex; })) uniq.push(o);
+  });
+  if (!uniq.length) return null;
+
+  function sat(hex) {
+    var c = hexToRgb(hex);
+    var mx = Math.max(c.r, c.g, c.b), mn = Math.min(c.r, c.g, c.b);
+    return mx ? (mx - mn) / mx : 0;
+  }
+
+  var base = uniq[0].hex;
+  var surface = (uniq[1] && uniq[1].hex) || base;
+
+  /* Aksen: paling jenuh yang cukup berbeda dari latar. */
+  var accent = base, best = -1;
+  uniq.forEach(function (u) {
+    var score = sat(u.hex) * (1 + contrastRatio(u.hex, base));
+    if (u.hex !== base && score > best) { best = score; accent = u.hex; }
+  });
+
+  /* Tinta: warna paling gelap, dipaksa memenuhi 4,5:1 di atas latar. */
+  var ink = null, inkL = 2;
+  uniq.forEach(function (u) { if (relLum(u.hex) < inkL) { inkL = relLum(u.hex); ink = u.hex; } });
+  ink = adjustForContrast(ink || "#101010", base, 4.5);
+
+  /* Redup: yang paling jauh dari jenuh/ringan, untuk subjudul & keterangan. */
+  var muted = null, mScore = -Infinity;
+  uniq.forEach(function (u) {
+    if (u.hex === ink || u.hex === accent) return;
+    var sc = -Math.abs(sat(u.hex) - 0.18) - Math.abs(relLum(u.hex) - 0.35);
+    if (sc > mScore) { mScore = sc; muted = u.hex; }
+  });
+  if (!muted) muted = adjustForContrast(ink, base, 3);
+
+  return {
+    colors: { base: base, surface: surface, accent: accent, ink: ink, muted: muted },
+    top: uniq.slice(0, 6).map(function (u) { return u.hex + " x" + u.n; }),
+    n: list.length
+  };
+}
+
 /* ============================ 3. STATE ============================ */
 
 const STORE_KEY = "sampul.state.v1";
@@ -581,6 +714,7 @@ const state = {
   pairingId: null,
   override: { heading: null, body: null },
   cover: { title: "JUDUL BUKU", subtitle: "", author: "NAMA PENULIS", preset: "6x9", fill: true },
+  wrap: { format: "kdp", paper: "putih", pages: 180, bleed: "in125", spine: true, publisher: "", blurb: "", isbn: "" },
   fonts: { ok: false, list: [], byFamily: {}, error: null, loaded: false },
   genHex: "#A6392E",
   genScheme: "analogous",
@@ -653,6 +787,7 @@ function saveState() {
       override: state.override,
       genScheme: state.genScheme,
       genTone: state.genTone,
+      wrap: state.wrap,
       cover: state.cover
     }));
   } catch (e) { /* penyimpanan tidak tersedia — abaikan */ }
@@ -685,7 +820,70 @@ function loadState() {
       });
       if (typeof d.cover.fill === "boolean") state.cover.fill = d.cover.fill;
     }
+    if (d.wrap) applyWrap(d.wrap);
   } catch (e) { /* data lama rusak — mulai bersih */ }
+}
+
+/* Sanitisasi konfigurasi liput penuh: nilai aneh tidak boleh meruntuhkan geometri. */
+function applyWrap(d) {
+  var w = state.wrap;
+  if (d.format && WRAP_FORMATS[d.format]) w.format = d.format;
+  if (d.paper && PAPERS[d.paper]) w.paper = d.paper;
+  if (d.bleed && BLEEDS[d.bleed]) w.bleed = d.bleed;
+  if (typeof d.spine === "boolean") w.spine = d.spine;
+  var p = Number(d.pages);
+  if (!isNaN(p)) w.pages = clamp(Math.round(p), 0, 3000);
+  ["publisher", "blurb", "isbn"].forEach(function (k) {
+    if (typeof d[k] === "string") w[k] = d[k].slice(0, 600);
+  });
+}
+
+/* ---- proyek .sampul.json: satu berkas, semua isi kerja ---- */
+
+function serializeProject() {
+  var g = wrapGeom();
+  return JSON.stringify({
+    kind: "sampul.project",
+    appVersion: APP_VERSION,
+    saved: new Date().toISOString(),
+    state: {
+      genre: state.genre, feel: state.feel, paletteId: state.paletteId, custom: state.custom,
+      pairingId: state.pairingId, override: state.override, genHex: state.genHex,
+      genScheme: state.genScheme, genTone: state.genTone, cover: state.cover, wrap: state.wrap
+    },
+    computed: {
+      palette: currentPalette(),
+      pairing: { id: currentPairing().id, name: currentPairing().name },
+      wrapGeom: { totalW: g.totalW, totalH: g.totalH, spineMm: Number(g.spineMm.toFixed(3)), dpi: g.dpi, warnings: g.warnings }
+    }
+  }, null, 2);
+}
+
+function applyProject(raw) {
+  var d = null;
+  try { d = JSON.parse(String(raw)); } catch (e) { return "Berkas bukan JSON yang sah."; }
+  if (!d || d.kind !== "sampul.project" || !d.state) return "Berkas bukan proyek Sampul (kind != sampul.project).";
+  var s = d.state;
+  if (s.genre && findById(GENRES, s.genre)) state.genre = s.genre;
+  if (s.feel === null || findById(FEELS, s.feel)) state.feel = s.feel || null;
+  if (s.paletteId) state.paletteId = s.paletteId;
+  state.custom = pruneCustom(Array.isArray(s.custom) ? s.custom : []);
+  if (s.pairingId && findById(PAIRINGS, s.pairingId)) state.pairingId = s.pairingId;
+  if (s.override) ["heading", "body"].forEach(function (k) {
+    var o = s.override[k];
+    state.override[k] = (o && typeof o.ps === "string") ? { family: o.family, ps: o.ps, style: o.style || "" } : null;
+  });
+  if (typeof s.genHex === "string" && normHex(s.genHex)) state.genHex = normHex(s.genHex);
+  if (s.genScheme && SCHEMES[s.genScheme]) state.genScheme = s.genScheme;
+  if (s.genTone === "dark" || s.genTone === "light") state.genTone = s.genTone;
+  if (s.cover) ["title", "subtitle", "author", "preset"].forEach(function (k) {
+    if (typeof s.cover[k] === "string" && (k !== "preset" || PRESETS[s.cover[k]])) state.cover[k] = s.cover[k];
+  });
+  if (typeof s.cover.fill === "boolean") state.cover.fill = s.cover.fill;
+  if (s.wrap) applyWrap(s.wrap);
+  saveState();
+  renderAll();
+  return null;
 }
 
 /* ============================ 4. PHOTOSHOP ============================ */
@@ -963,6 +1161,22 @@ var PS = (function () {
     });
   }
 
+  /* Putar layer aktif — untuk teks punggung buku. */
+  function rotateActive(angle) {
+    return bp([{
+      _obj: "rotate",
+      _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
+      angle: { _unit: "angleUnit", _value: angle }
+    }]).catch(function () {
+      return bp([{
+        _obj: "rotateEvent",
+        _target: [{ _ref: "layer", _enum: "ordinal", _value: "targetEnum" }],
+        angle: { _unit: "angleUnit", _value: angle },
+        freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" }
+      }]);
+    });
+  }
+
   function loadFonts() {
     var api = live && ps.app ? ps.app.fonts : null;
     if (!api) {
@@ -1078,6 +1292,279 @@ var PS = (function () {
     });
   }
 
+  /* ---------- ekstraksi warna dari dokumen aktif ---------- */
+  /* photoshop 28.2 membatasi 10 colorSampler per dokumen (terukur: yang ke-11
+     ditolak), jadi grid dipecah jadi beberapa ronde: bersihkan -> buat -> baca. */
+  var SAMPLER_MAX = 10;
+
+  function samplerMakeDesc(x, y) {
+    return {
+      _obj: "make",
+      _target: [{ _ref: "colorSampler" }],
+      position: {
+        _obj: "paint",
+        horizontal: px(Math.round(x)),
+        vertical: px(Math.round(y))
+      }
+    };
+  }
+
+  function samplerClearDesc() {
+    return { _obj: "delete", _target: { _ref: [{ _ref: "colorSampler", _enum: "ordinal", _value: "allEnum" }] } };
+  }
+
+  function clearSamplers() {
+    return bp([samplerClearDesc()]).catch(function () {
+      return bp([{ _obj: "delete", _target: [{ _ref: "colorSampler", _enum: "ordinal", _value: "allEnum" }] }]);
+    });
+  }
+
+  /* Entri colorSamplerList: { position:{horizontal,vertical}, color:{red,green,blue} }.
+     Nama kunci bisa berbeda antar versi, jadi dicari angka RGB di dalam mana pun. */
+  function entryHex(e) {
+    if (!e || typeof e !== "object") return null;
+    var c = e.color || e.RGBColor || null;
+    if (!c) return null;
+    function g(names) {
+      for (var i = 0; i < names.length; i++) {
+        var v = c[names[i]];
+        if (typeof v === "number") return v;
+        if (v && typeof v._value === "number") return v._value;
+      }
+      return null;
+    }
+    var r = g(["red", "Rd  "]), gg = g(["green", "Grn "]), b = g(["blue", "Bl  "]);
+    if (r === null || gg === null || b === null) return null;
+    var s = function (n) { return clamp(Math.round(n), 0, 255); };
+    return rgbToHex(s(r), s(gg), s(b));
+  }
+
+  function readSamplerColors() {
+    return bp([{
+      _obj: "get",
+      _target: [{ _ref: "document", _enum: "ordinal", _value: "targetEnum" }],
+      _props: ["colorSamplerList"]
+    }]).then(function (res) {
+      var d = res && res[0];
+      var list = d && d.colorSamplerList;
+      if (!Array.isArray(list)) return [];
+      return list.map(entryHex).filter(function (h) { return !!h; });
+    });
+  }
+
+  /* Titik kisi berstrata: tidak tepat di tengah (subjek foto) dan tidak di tepi. */
+  function gridPoints(w, h) {
+    var fx = [0.16, 0.38, 0.62, 0.84];
+    var fy = [0.12, 0.30, 0.50, 0.70, 0.88];
+    var pts = [];
+    for (var j = 0; j < fy.length; j++) {
+      for (var i = 0; i < fx.length; i++) {
+        pts.push({ x: clamp(Math.round(w * fx[i]), 0, w - 1), y: clamp(Math.round(h * fy[j]), 0, h - 1) });
+      }
+    }
+    return pts;
+  }
+
+  function sampleActive(docSize) {
+    var w = Math.round(docSize.w), h = Math.round(docSize.h);
+    if (!w || !h) return Promise.reject(new Error("Ukuran dokumen tidak terbaca."));
+    var pts = gridPoints(w, h);
+    var rounds = [];
+    for (var i = 0; i < pts.length; i += SAMPLER_MAX) rounds.push(pts.slice(i, i + SAMPLER_MAX));
+    var colors = [];
+    var chain = Promise.resolve();
+    rounds.forEach(function (batch, ri) {
+      chain = chain.then(function () { return clearSamplers(); })
+        .then(function () { return bp(batch.map(function (p) { return samplerMakeDesc(p.x, p.y); })); })
+        .then(function () { return readSamplerColors(); })
+        .then(function (got) {
+          colors = colors.concat(got);
+        }, function (e) {
+          log("Ronde sampler " + (ri + 1) + " gagal: " + msgOf(e));
+        });
+    });
+    return chain.then(function () { return clearSamplers().catch(function () {}); }).then(function () {
+      return { colors: colors, points: pts.length, rounds: rounds.length };
+    });
+  }
+
+  /* ---------- garis panduan trim/bleed ---------- */
+  function guideDesc(orientation, position) {
+    return {
+      _obj: "newGuide",
+      _target: [{ _ref: "guide" }],
+      new: { orientation: { _enum: "orientation", _value: orientation }, position: px(position) }
+    };
+  }
+
+  function addGuides(lines) {
+    return bp(lines.map(function (l) { return guideDesc(l.o, l.p); })).catch(function () {
+      return bp(lines.map(function (l) {
+        var d = { _obj: "newGuide", _target: { _ref: "guide" }, new: {} };
+        d.new.orientation = { _enum: "orientation", _value: l.o };
+        d.new.position = { _unit: "pixelsUnit", _value: l.p };
+        return d;
+      }));
+    });
+  }
+
+  /* ---------- ekspor: file token lalu saveAs inti, fallback AM ---------- */
+  var SAVE_TYPES = {
+    png: ["png"], jpg: ["jpg", "jpeg"], psd: ["psd"], psb: ["psb"], gif: ["gif"], bmp: ["bmp"], pdf: ["pdf"], json: ["json"]
+  };
+  var AM_SAVE = {
+    png: function () { return { cls: "PNGFormat", opts: { bitDepth: 8, embedColors: true, interlace: false } }; },
+    jpg: function () { return { cls: "JPEGFormat", opts: { quality: 12, embedProfile: true } }; }
+  };
+
+  function pickSave(suggestedName, fmt) {
+    var lfs = uxpMod && uxpMod.storage ? uxpMod.storage.localFileSystem : null;
+    if (!lfs || typeof lfs.getFileForSaving !== "function") {
+      return Promise.reject(new Error("Pemilih file tidak tersedia (butuh izin localFileSystem)."));
+    }
+    var types = (SAVE_TYPES[fmt] || [fmt]).map(function (ext) {
+      return { description: ext.toUpperCase(), extension: ext };
+    });
+    return Promise.resolve(lfs.getFileForSaving(suggestedName, { types: types }));
+  }
+
+  function pickOpen(fmt) {
+    var lfs = uxpMod && uxpMod.storage ? uxpMod.storage.localFileSystem : null;
+    if (!lfs || typeof lfs.getFileForOpening !== "function") {
+      return Promise.reject(new Error("Pemilih file tidak tersedia (butuh izin localFileSystem)."));
+    }
+    var types = (SAVE_TYPES[fmt] || [fmt]).map(function (ext) {
+      return { description: ext.toUpperCase(), extension: ext };
+    });
+    return Promise.resolve(lfs.getFileForOpening({ types: types, allowMultiple: false }));
+  }
+
+  function docSaveAs(fmt, entry) {
+    var doc = ps.app.activeDocument;
+    if (!doc) return Promise.reject(new Error("Tidak ada dokumen aktif."));
+    var via = null;
+    if (doc.saveAs && typeof doc.saveAs[fmt] === "function") {
+      var opts = fmt === "jpg" ? { quality: 12 } : undefined;
+      var res = fmt === "jpg" ? doc.saveAs[fmt](entry, opts, true) : doc.saveAs[fmt](entry, opts);
+      return Promise.resolve(res).then(function () { return "core:saveAs." + fmt; });
+    }
+    var mk = AM_SAVE[fmt];
+    if (mk) {
+      var spec = mk();
+      var desc = { _obj: "save", documentID: doc.id, _target: [{ _ref: "document", _id: doc.id }] };
+      desc.in = { _kind: "local", _path: entry };
+      var o = {};
+      for (var k in spec.opts) o[k] = spec.opts[k];
+      desc.as = Object.assign({ _obj: spec.cls }, o);
+      desc.copy = true;
+      return bp([desc]).then(function () { return "action:" + spec.cls; });
+    }
+    if (fmt === "pdf") {
+      /* save-as-PDF lewat AM ditolak build ini; satu-satunya jalan adalah dialog bawaan. */
+      return bp([{ _obj: "save", _target: [{ _ref: "document", _id: doc.id }] }], { dialogOptions: "display" })
+        .then(function () { return "dialog-save"; });
+    }
+    return Promise.reject(new Error("Host ini tidak punya saveAs." + fmt + " dan tidak ada jalur cadangan."));
+  }
+
+  function saveFormat(fmt, suggestedName) {
+    if (!live) return Promise.reject(new Error("Photoshop tidak terdeteksi."));
+    /* Pemilih file harus di LUAR executeAsModal; aksi dokumen di dalamnya. */
+    return pickSave(suggestedName, fmt).then(function (entry) {
+      if (!entry) return { ok: false, cancelled: true };
+      return run("Sampul: simpan " + fmt.toUpperCase(), function () {
+        return docSaveAs(fmt, entry);
+      }).then(function (via) {
+        return { ok: true, via: via, name: entry.name || suggestedName };
+      });
+    });
+  }
+
+  /* Thumbnail: duplikat -> ubah ukuran -> simpan PNG -> tutup tanpa simpan. */
+  function saveThumb(suggestedName, maxSide) {
+    if (!live) return Promise.reject(new Error("Photoshop tidak terdeteksi."));
+    if (!ps.app.activeDocument) return Promise.reject(new Error("Tidak ada dokumen aktif."));
+    return pickSave(suggestedName, "png").then(function (entry) {
+      if (!entry) return { ok: false, cancelled: true };
+      var dup = null;
+      return run("Sampul: thumbnail", function () {
+        return bp([{
+          _obj: "duplicate",
+          _target: [{ _ref: "document", _enum: "ordinal", _value: "targetEnum" }],
+          name: "thumbnail"
+        }]).then(function () {
+          dup = ps.app.activeDocument;
+          return bp([{
+            _obj: "imageSize",
+            width: { _unit: "pixelsUnit", _value: maxSide },
+            height: { _unit: "pixelsUnit", _value: maxSide },
+            constrainProportions: true,
+            resolution: { _unit: "densityUnit", _value: 72 },
+            interpolation: { _enum: "interpolation", _value: "bicubic" }
+          }]);
+        }).then(function () {
+          return docSaveAs("png", entry).then(function (via) {
+            return bp([{
+              _obj: "close",
+              _target: [{ _ref: "document", _enum: "ordinal", _value: "targetEnum" }],
+              saving: { _enum: "yesNo", _value: "no" }
+            }]).then(function () { return via; });
+          });
+        }).catch(function (e) {
+          if (dup) {
+            return bp([{
+              _obj: "close",
+              _target: [{ _ref: "document", _enum: "ordinal", _value: "targetEnum" }],
+              saving: { _enum: "yesNo", _value: "no" }
+            }]).then(function () { throw e; }, function () { throw e; });
+          }
+          throw e;
+        });
+      }).then(function (via) {
+        return { ok: true, via: via, name: entry.name || suggestedName };
+      });
+    });
+  }
+
+  /* ---------- berkas proyek teks ---------- */
+  function writeText(entry, text) {
+    if (typeof entry.write !== "function") return Promise.reject(new Error("Berkas tidak bisa ditulis."));
+    return Promise.resolve(entry.write(text, { format: "utf8" })).then(function () {
+      return { ok: true, name: entry.name || "berkas" };
+    });
+  }
+
+  function readText(entry) {
+    if (typeof entry.read !== "function") return Promise.reject(new Error("Berkas tidak bisa dibaca."));
+    return Promise.resolve(entry.read({ format: "utf8" })).then(function (t) { return String(t); });
+  }
+
+  function saveProject(text, suggestedName) {
+    return pickSave(suggestedName, "json").then(function (entry) {
+      if (!entry) return { ok: false, cancelled: true };
+      return writeText(entry, text);
+    });
+  }
+
+  function openProject() {
+    return pickOpen("json").then(function (entry) {
+      if (!entry) return null;
+      return readText(entry).then(function (t) { return { text: t, name: entry.name || "proyek" }; });
+    });
+  }
+
+  function capabilities() {
+    var doc = live ? ps.app.activeDocument : null;
+    var fmts = ["jpg", "png", "psd", "psb", "gif", "bmp", "pdf"];
+    var core = fmts.filter(function (f) { return !!(doc && doc.saveAs && typeof doc.saveAs[f] === "function"); });
+    return {
+      lfs: !!(uxpMod && uxpMod.storage && uxpMod.storage.localFileSystem && uxpMod.storage.localFileSystem.getFileForSaving),
+      coreSaveAs: core,
+      amFallback: Object.keys(AM_SAVE),
+      doc: doc ? doc.name : null
+    };
+  }
+
   return {
     live: live,
     mod: ps,
@@ -1100,6 +1587,16 @@ var PS = (function () {
     tintActiveText: tintActiveText,
     loadFonts: loadFonts,
     selfTest: selfTest,
+    sampleActive: sampleActive,
+    rotateActive: rotateActive,
+    clearSamplers: clearSamplers,
+    readSamplerColors: readSamplerColors,
+    addGuides: addGuides,
+    saveFormat: saveFormat,
+    saveThumb: saveThumb,
+    saveProject: saveProject,
+    openProject: openProject,
+    capabilities: capabilities,
     paths: function () { return { create: lastCreatePath, text: lastTextPath }; }
   };
 })();
@@ -1551,6 +2048,51 @@ function renderCoverStage() {
   if (cap) cap.textContent = p.name + " · " + head.family + " + " + resolveFont(pairing.body, false).family;
 }
 
+/* Panel cetak: liput penuh + ekspor. Semua angka datang dari wrapGeom(). */
+function renderWrap() {
+  var g = wrapGeom();
+  var fmtHost = $("#wrapFormatChips");
+  if (fmtHost) {
+    fmtHost.innerHTML = Object.keys(WRAP_FORMATS).map(function (k) {
+      return chipHTML(WRAP_FORMATS[k].label, state.wrap.format === k, "pick-format", k);
+    }).join("");
+  }
+  var papHost = $("#wrapPaperChips");
+  if (papHost) {
+    papHost.innerHTML = Object.keys(PAPERS).map(function (k) {
+      return chipHTML(PAPERS[k].label, state.wrap.paper === k, "pick-paper", k);
+    }).join("");
+  }
+  var blHost = $("#wrapBleedChips");
+  if (blHost) {
+    blHost.innerHTML = Object.keys(BLEEDS).map(function (k) {
+      return chipHTML(BLEEDS[k].label, state.wrap.bleed === k, "pick-bleed", k);
+    }).join("");
+  }
+  var sp = $("#fSpine");
+  if (sp) {
+    sp.textContent = state.wrap.spine ? "Teks punggung: aktif" : "Teks punggung: mati";
+    sp.classList.toggle("is-on", state.wrap.spine);
+  }
+
+  var sum = $("#wrapSummary");
+  if (sum) {
+    sum.innerHTML =
+      '<div class="metric"><b>Sheet</b> ' + g.totalW + " x " + g.totalH + ' px</div>' +
+      '<div class="metric"><b>Trim</b> ' + (g.trimW / g.dpi).toFixed(2) + " x " + (g.trimH / g.dpi).toFixed(2) + " in (" +
+        Math.round(g.mm.trimW) + " x " + Math.round(g.mm.trimH) + ' mm)</div>' +
+      '<div class="metric"><b>Punggung</b> ' + g.spineMm.toFixed(1) + " mm (" + g.spineIn.toFixed(2) + " in) dari " + g.pages + " hal " + esc(g.paper.label.toLowerCase()) + '</div>' +
+      '<div class="metric"><b>Bleed</b> ' + g.bleed.mm + " mm tiap sisi</div>" +
+      '<div class="metric"><b>Ukuran file ±</b> ' + Math.round(g.totalW * g.totalH * 3 / 1024 / 1024) + " MB (RGB 8-bit)</div>";
+  }
+  var warn = $("#wrapWarnings");
+  if (warn) {
+    warn.innerHTML = g.warnings.length
+      ? g.warnings.map(function (w) { return '<div class="warn">' + esc(w) + "</div>"; }).join("")
+      : '<div class="hint">Tidak ada peringatan. Siap dibangun.</div>';
+  }
+}
+
 function renderFontStatus() {
   var el = $("#fontsStatus");
   if (!el) return;
@@ -1653,6 +2195,11 @@ function syncCoverInputs() {
   if (s) s.value = state.cover.subtitle;
   if (a) a.value = state.cover.author;
   if (g) g.value = state.genHex;
+  var pg = $("#fPages"), pb = $("#fPublisher"), bb = $("#fBlurb"), ib = $("#fIsbn");
+  if (pg) pg.value = state.wrap.pages;
+  if (pb) pb.value = state.wrap.publisher;
+  if (bb) bb.value = state.wrap.blurb;
+  if (ib) ib.value = state.wrap.isbn;
 }
 
 function renderAll() {
@@ -1663,6 +2210,7 @@ function renderAll() {
   renderPairingHero();
   renderPairingList();
   renderCoverStage();
+  renderWrap();
   renderFontStatus();
   renderFontPickers();
 }
@@ -1801,6 +2349,217 @@ function buildCover(mode) {
   }, function () {});
 
   log("Bangun sampul: " + palette.name + " + " + fontLabel(pairing) + (mode === "new" ? " (dokumen baru)" : " (dokumen aktif)"));
+}
+
+/* Garis trim + batas bleed untuk sheet liput penuh. */
+function wrapGuideLines(g) {
+  var lines = [];
+  [g.back.x0, g.back.x1, g.spine.x1, g.front.x1, g.totalW - g.bleedPx].forEach(function (x) {
+    lines.push({ o: "vertical", p: Math.round(x) });
+  });
+  [g.bleedPx, g.totalH - g.bleedPx].forEach(function (y) {
+    lines.push({ o: "horizontal", p: Math.round(y) });
+  });
+  return lines;
+}
+
+function buildWrap() {
+  var g = wrapGeom();
+  var palette = currentPalette();
+  var pairing = currentPairing();
+  var head = resolveFont(pairing.heading, true);
+  var body = resolveFont(pairing.body, false);
+  if (!head.ps || !body.ps) { setStatus("Font belum tersedia.", "err"); return; }
+
+  log("Liput penuh " + g.totalW + "x" + g.totalH + " px @" + g.dpi + " dpi; punggung " +
+    g.spineMm.toFixed(1) + " mm dari " + g.pages + " halaman " + g.paper.label.toLowerCase() +
+    "; bleed " + g.bleed.mm + " mm (" + g.format.label + ")");
+  g.warnings.forEach(function (w) { log("!! " + w); });
+
+  var job = guard(PS.run("Sampul: bangun liput penuh", function () {
+    return PS.createDocument({ w: g.totalW, h: g.totalH, dpi: g.dpi }, "Liput " + sampleTitle().slice(0, 18)).then(function () {
+      var chain = Promise.resolve();
+      if (state.cover.fill) chain = chain.then(function () { return PS.fillBackground(palette.colors.base); });
+      chain = chain.then(function () { return PS.addGuides(wrapGuideLines(g)); });
+
+      var hIn = g.trimH / g.dpi;
+      var layout = titleLayout(sampleTitle());
+      var titleText = layout.lines.join("\r");
+      var track = (pairing.heading.tracking || 0) / 1000;
+      var byHeightPt = (0.30 * hIn * 72) / (layout.lines.length * 0.95);
+      var byWidthPt = (0.86 * g.trimW * 72 / g.dpi) / (layout.longest * (0.66 + track) + 1.0);
+      var titlePt = Math.max(10, Math.min(byHeightPt, byWidthPt));
+      var frontCx = (g.front.x0 + g.front.x1) / 2;
+
+      chain = chain.then(function () {
+        return PS.makeTextLayer({
+          name: "Judul", text: titleText, font: head.ps, size: titlePt,
+          color: palette.colors.accent, tracking: pairing.heading.tracking || 0,
+          textCase: pairing.heading.case, leadingFactor: 0.95, justify: "center",
+          cx: frontCx, cy: g.bleedPx + g.trimH * 0.235
+        });
+      });
+
+      var sub = (state.cover.subtitle || "").trim();
+      if (sub) {
+        chain = chain.then(function () {
+          return PS.makeTextLayer({
+            name: "Subjudul", text: sub, font: body.ps, size: titlePt * 0.30,
+            color: palette.colors.muted, tracking: 120, textCase: "upper",
+            justify: "center", cx: frontCx, cy: g.bleedPx + g.trimH * 0.395
+          });
+        });
+      }
+
+      var author = (state.cover.author || "").trim();
+      if (author) {
+        chain = chain.then(function () {
+          return PS.makeTextLayer({
+            name: "Penulis", text: author, font: body.ps, size: titlePt * 0.34,
+            color: palette.colors.ink, tracking: 60, textCase: "upper",
+            justify: "center", cx: frontCx, cy: g.bleedPx + g.trimH * 0.885
+          });
+        });
+      }
+
+      /* Punggung: satu baris, diputar 90°, hanya kalau lebarnya memadai. */
+      if (state.wrap.spine) {
+        if (!g.spineTextOk) {
+          chain = chain.then(function () {
+            log("!! Teks punggung dilewati: " + g.spineMm.toFixed(1) + " mm di bawah patokan " +
+              g.format.spineTextPages + " halaman untuk " + g.format.label + ".");
+            return null;
+          });
+        } else {
+          var spineText = (sampleTitle().replace(/[\r\n]+/g, " ") + (author ? "  \u00b7  " + author : "")).toUpperCase();
+          var spinePt = Math.max(8, Math.min(
+            g.spineIn * 72 * 0.42,
+            (g.trimH * 0.78 * 72 / g.dpi) / (spineText.length * 0.62)
+          ));
+          chain = chain.then(function () {
+            return PS.makeTextLayer({
+              name: "Punggung", text: spineText, font: head.ps, size: spinePt,
+              color: palette.colors.accent, tracking: pairing.heading.tracking || 0,
+              textCase: "none", justify: "center",
+              cx: (g.spine.x0 + g.spine.x1) / 2, cy: g.totalH / 2
+            });
+          }).then(function () {
+            return PS.rotateActive(90).catch(function (e) {
+              log("!! Putar punggung gagal: " + msgOf(e) + " — putar manual lalu paskan.");
+            });
+          });
+        }
+      }
+
+      var blurb = (state.wrap.blurb || "").trim();
+      if (blurb) {
+        chain = chain.then(function () {
+          return PS.makeTextLayer({
+            name: "Blurb", text: blurb, font: body.ps, size: Math.max(8, titlePt * 0.22),
+            color: palette.colors.ink, tracking: 10, textCase: "none",
+            leadingFactor: 1.35, justify: "center",
+            cx: (g.back.x0 + g.back.x1) / 2, cy: g.bleedPx + g.trimH * 0.42
+          });
+        });
+      }
+
+      var pub = (state.wrap.publisher || "").trim();
+      if (pub) {
+        chain = chain.then(function () {
+          return PS.makeTextLayer({
+            name: "Penerbit", text: pub, font: body.ps, size: Math.max(8, titlePt * 0.20),
+            color: palette.colors.muted, tracking: 80, textCase: "upper",
+            justify: "center", cx: (g.back.x0 + g.back.x1) / 2, cy: g.bleedPx + g.trimH * 0.94
+          });
+        });
+      }
+      return chain;
+    });
+  }), "Liput penuh dibangun.");
+
+  job.then(function () {
+    var pa = PS.paths();
+    if (pa.create || pa.text) {
+      log("Jalur deskriptor: dokumen=" + (pa.create || "-") + ", teks=" + (pa.text || "-"));
+    }
+  }, function () {});
+}
+
+/* ---- ekspor berkas ---- */
+
+function doExport(fmt, suggested) {
+  if (!PS.live) { log("[demo] ekspor " + fmt + " butuh Photoshop."); setStatus("Mode demo — ekspor butuh Photoshop.", "err"); return; }
+  if (!PS.mod.app || !PS.mod.app.activeDocument) { setStatus("Tidak ada dokumen aktif.", "err"); return; }
+  setStatus("Menyimpan " + fmt.toUpperCase() + "…");
+  PS.saveFormat(fmt, suggested).then(function (res) {
+    if (!res) return;
+    if (res.cancelled) { setStatus("Dibatalkan."); return; }
+    log("Tersimpan " + res.name + " (lewat " + res.via + ").");
+    setStatus("Tersimpan: " + res.name, "ok");
+  }, function (e) {
+    log("!! Ekspor " + fmt + ": " + msgOf(e));
+    setStatus("Ekspor gagal — lihat log.", "err");
+  });
+}
+
+function doThumb(maxSide) {
+  if (!PS.live) { log("[demo] thumbnail butuh Photoshop."); return; }
+  if (!PS.mod.app || !PS.mod.app.activeDocument) { setStatus("Tidak ada dokumen aktif.", "err"); return; }
+  setStatus("Membuat thumbnail…");
+  PS.saveThumb("thumbnail-sampul.png", maxSide || 300).then(function (res) {
+    if (!res) return;
+    if (res.cancelled) { setStatus("Dibatalkan."); return; }
+    log("Thumbnail " + maxSide + " px tersimpan: " + res.name);
+    setStatus("Thumbnail tersimpan.", "ok");
+  }, function (e) {
+    log("!! Thumbnail: " + msgOf(e));
+    setStatus("Thumbnail gagal.", "err");
+  });
+}
+
+/* ---- ekstraksi palet dari dokumen aktif ---- */
+
+function extractFromDocument() {
+  if (!PS.live) {
+    log("[demo] ekstraksi warna butuh Photoshop.");
+    setStatus("Mode demo — ekstraksi butuh Photoshop.", "err");
+    return;
+  }
+  setStatus("Mengambil warna dari dokumen aktif…");
+  PS.run("Sampul: ambil warna dokumen", function () {
+    var doc = PS.mod.app.activeDocument;
+    if (!doc) throw new Error("Tidak ada dokumen aktif.");
+    return PS.measureDoc(doc).then(function (size) { return PS.sampleActive(size); });
+  }).then(function (res) {
+    if (!res) return;
+    var pal = paletteFromSamples(res.colors);
+    if (!pal) {
+      setStatus("Warna tidak terbaca dari dokumen.", "err");
+      log("!! Ekstraksi: sampel kosong (" + res.colors.length + "/" + res.points + " titik).");
+      return;
+    }
+    var name = uniqueName("Dari dokumen", allPalettes());
+    var saved = pushCustom({
+      id: "doc-" + Date.now(),
+      name: name,
+      genres: [state.genre],
+      feels: state.feel ? [state.feel] : [],
+      colors: pal.colors,
+      note: "Ekstraksi dokumen aktif: " + res.colors.length + " sampel / " + res.points + " titik (" + res.rounds + " ronde sampler)."
+    });
+    if (saved) {
+      state.paletteId = saved.id;
+      saveState();
+      renderAll();
+      setStatus("Palet diambil: " + saved.name, "ok");
+    } else {
+      setStatus("Warna sama dengan palet yang sudah ada — tidak disimpan lagi.");
+    }
+    log("Ekstraksi: " + res.colors.length + "/" + res.points + " sampel, warna teratas " + pal.top.join(" ") + ".");
+  }, function (e) {
+    log("!! Ekstraksi warna: " + msgOf(e));
+    setStatus("Ekstraksi gagal — lihat log.", "err");
+  });
 }
 
 /* Menyalin sambil menunggu hasilnya. v1.2 memanggil clipboard tanpa menunggu,
@@ -2154,6 +2913,97 @@ function handleAction(act, el) {
       break;
     }
 
+    case "pick-format":
+      applyWrap({ format: id }); saveState(); renderWrap();
+      setStatus("Format: " + WRAP_FORMATS[state.wrap.format].label);
+      break;
+
+    case "pick-paper":
+      applyWrap({ paper: id }); saveState(); renderWrap();
+      setStatus("Kertas: " + PAPERS[state.wrap.paper].label + " (" + PAPERS[state.wrap.paper].note + ")");
+      break;
+
+    case "pick-bleed":
+      applyWrap({ bleed: id }); saveState(); renderWrap();
+      setStatus("Bleed: " + BLEEDS[state.wrap.bleed].label);
+      break;
+
+    case "toggle-spine":
+      applyWrap({ spine: !state.wrap.spine }); saveState(); renderWrap();
+      break;
+
+    case "build-wrap":
+      buildWrap();
+      break;
+
+    case "wrap-guides": {
+      if (!PS.live) { log("[demo] garis panduan butuh Photoshop."); break; }
+      var gl = wrapGuideLines(wrapGeom());
+      guard(PS.run("Sampul: garis panduan", function () { return PS.addGuides(gl); }),
+        gl.length + " garis panduan trim/bleed ditambahkan.");
+      break;
+    }
+
+    case "extract-colors":
+      extractFromDocument();
+      break;
+
+    case "export-pdf":
+      doExport("pdf", "sampul-liput.pdf");
+      break;
+
+    case "export-jpg":
+      doExport("jpg", "sampul-liput.jpg");
+      break;
+
+    case "export-png":
+      doExport("png", "sampul-liput.png");
+      break;
+
+    case "export-psd":
+      doExport("psd", "sampul-liput.psd");
+      break;
+
+    case "export-thumb":
+      doThumb(300);
+      break;
+
+    case "save-project": {
+      if (!PS.live) { log("[demo] simpan proyek butuh Photoshop (izin berkas)."); break; }
+      setStatus("Menyimpan proyek…");
+      PS.saveProject(serializeProject(), "proyek-sampul.sampul.json").then(function (res) {
+        if (!res) return;
+        if (res.cancelled) { setStatus("Dibatalkan."); return; }
+        log("Proyek disimpan: " + res.name);
+        setStatus("Proyek disimpan: " + res.name, "ok");
+      }, function (e) {
+        log("!! Simpan proyek: " + msgOf(e));
+        setStatus("Simpan proyek gagal — lihat log.", "err");
+      });
+      break;
+    }
+
+    case "open-project": {
+      if (!PS.live) { log("[demo] buka proyek butuh Photoshop (izin berkas)."); break; }
+      setStatus("Membuka proyek…");
+      PS.openProject().then(function (res) {
+        if (!res) { setStatus("Dibatalkan."); return; }
+        var err = applyProject(res.text);
+        if (err) {
+          log("!! Buka proyek: " + err);
+          setStatus(err, "err");
+          return;
+        }
+        syncCoverInputs();
+        log("Proyek dimuat: " + res.name);
+        setStatus("Proyek dimuat: " + res.name, "ok");
+      }, function (e) {
+        log("!! Buka proyek: " + msgOf(e));
+        setStatus("Buka proyek gagal — lihat log.", "err");
+      });
+      break;
+    }
+
     default:
       break;
   }
@@ -2256,6 +3106,23 @@ function init() {
   bindCoverInput("fTitle", "title");
   bindCoverInput("fSubtitle", "subtitle");
   bindCoverInput("fAuthor", "author");
+
+  // input liput penuh: halaman mengubah geometri, yang lain hanya teks
+  function bindWrapInput(elId, key, reRender) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    el.addEventListener("input", function () {
+      var patch = {};
+      patch[key] = el.value;
+      applyWrap(patch);
+      if (reRender) renderWrap();
+      saveState();
+    });
+  }
+  bindWrapInput("fPages", "pages", true);
+  bindWrapInput("fPublisher", "publisher", false);
+  bindWrapInput("fBlurb", "blurb", false);
+  bindWrapInput("fIsbn", "isbn", false);
 
   var hexIn = $("#genHex");
   if (hexIn) {

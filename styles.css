@@ -686,3 +686,23 @@ ol { list-style: none; }
 }
 
 .card-x:hover { color: #f0a9a1; border-color: #4a2b2b; }
+
+/* ---- panel cetak & ekspor ---- */
+.wrap-summary {
+  margin-top: 10px;
+  display: grid;
+  gap: 4px;
+  font-size: 10.5px;
+  color: #b4bdc9;
+}
+
+.wrap-summary .metric b { color: #e7eaf0; margin-right: 4px; }
+
+.warn-list { margin-top: 8px; display: grid; gap: 4px; }
+
+.warn {
+  font-size: 10.5px;
+  color: #f0b9a1;
+  border-left: 2px solid #a6523c;
+  padding: 3px 8px;
+}

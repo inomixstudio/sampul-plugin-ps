@@ -8,13 +8,13 @@ Alurnya: pilih **kategori** (sastra, thriller, anak, …) dan **rasa** yang ditu
 
 | | |
 |---|---|
-| Versi | **1.3.0** (manifest v5) |
+| Versi | **1.4.0** (manifest v5) |
 | Host teruji | Adobe Photoshop (Beta) **28.2** — UXP 10 |
 | Cara aktif | disalin ke `%APPDATA%\Adobe\UXP\Plugins\External\com.99desains.sampul` + **Developer Mode** |
-| Izin | hanya `clipboard: "readAndWrite"` (dipakai panel bawaan Adobe juga) — tidak sentuh disk, tidak ada jaringan, tanpa dependensi |
+| Izin | `clipboard: "readAndWrite"` + `localFileSystem: "fullAccess"` (pemilih berkas untuk ekspor/proyek — keduanya dipakai panel bawaan Adobe juga) |
 | Aktif di | Photoshop Beta 28.2 — tercatat di log UXP: `Number of plugins added from user's fallback: 1`, tanpa error manifest/ikon |
-| Ukuran | ± 110 KB (5 file + 4 ikon + 1 skrip uji) |
-| Uji mandiri | `node scripts/selftest.js` → 60 pemeriksaan, tanpa Photoshop |
+| Ukuran | ± 120 KB (5 file + 6 ikon + skrip) |
+| Uji mandiri | `node scripts/selftest.js` → 110 pemeriksaan, tanpa Photoshop |
 | Master | folder ini. Salinan terinstal dibuat ulang dengan `npm run sync` |
 
 Membuka panel: menu **Plugins → Sampul**. Kalau tidak muncul, restart Photoshop.
@@ -25,13 +25,15 @@ Membuka panel: menu **Plugins → Sampul**. Kalau tidak muncul, restart Photosho
 
 | File | Fungsi |
 |---|---|
-| `manifest.json` | identitas plugin, host PS ≥ 24, ikon, tanpa izin file system |
-| `index.html` | struktur panel: 3 tab (Warna, Tipografi, Bangun) + panduan rasa |
+| `manifest.json` | identitas plugin, host PS ≥ 24, ikon, izin clipboard + berkas |
+| `index.html` | struktur panel: 4 tab (Warna, Tipografi, Bangun, Cetak & Ekspor) + panduan rasa |
 | `styles.css` | tampilan panel; aman untuk UXP (tanpa grid/var CSS/gap, tanpa `<select>`) |
 | `main.js` | data + logika (bagian 1–8) |
 | `icons/` | `icon_D` / `icon_N` dalam `.png`, `@1x.png`, `@2x.png` (20/40 px RGBA) untuk menu Plugins |
-| `scripts/selftest.js` | uji regresi: matematika warna, integritas data, penyimpanan, render, bentuk deskriptor batchPlay |
-| `package.json` | `npm test`, `npm run check`, `npm run sync` |
+| `scripts/selftest.js` | uji regresi: matematika warna, geometri liput penuh, ekstraksi, proyek, bentuk deskriptor batchPlay |
+| `scripts/sync.js` | menyalin master ke folder External + membuang berkas usang |
+| `scripts/mkicons.js` | membuat 6 PNG ikon dari skrip (termasuk varian `@1x`) |
+| `package.json` | `npm test`, `npm run check`, `npm run sync`, `npm run icons` |
 
 Tidak ada dependensi, tidak ada build step.
 
@@ -86,6 +88,14 @@ Berhenti memakai: hapus foldernya dari `External`. Developer Mode sebaiknya dima
 - Log mencatat setiap aksi; baris diawali `!!` berarti gagal. Penyalinan HEX/CSS memakai `navigator.clipboard` (pola panel bawaan Adobe) lalu jatuh ke `uxp.clipboard` dan `execCommand`; log menyebut jalur mana yang berhasil.
 - Dari konsol UXP Developer Tool bisa diakses lewat `SAMPUL.state`, `SAMPUL.PRESETS`, `SAMPUL.ps.selfTest(...)`.
 
+### Tab Cetak & Ekspor
+- **Liput penuh** (back + punggung + front) untuk KDP paperback, BookBaby, atau offset umum. Tebal punggung dihitung dari **jumlah halaman × tebal kertas** (putih 0,0635 mm/hal, krem 0,0794, warna premium 0,1016 — patokan KDP), lalu ditambahkan bleed (3 mm / 5 mm / 0,125 in). Panel menampilkan ukuran sheet dalam px + mm, dan memberi peringatan bila halaman di bawah minimum format, teks punggung terlalu sempit, atau bleed 0.
+- **Bangun liput penuh** → dokumen sesuai hitungan, latar palet, **garis panduan** trim/bleed, judul–subjudul–penulis di panel depan, **teks punggung diputar 90°** (otomatis dilewati kalau punggung kurang dari patokan halaman format), blurb + nama penerbit di panel belakang.
+- **Garis panduan trim/bleed** bisa ditambahkan sendiri ke dokumen yang sudah ada.
+- **Ekspor**: JPG/PNG/PSD tersimpan setelah memilih lokasi (tanpa dialog simpan kedua); **thumbnail 300 px** dibuat dari salinan dokumen supaya aslinya tidak diubah; **PDF** lewat dialog bawaan Photoshop — build 28.2 menolak save-PDF langsung dari panel (terverifikasi lewat Action Manager).
+- **Ambil warna dari dokumen** → 20 titik warna berstrata dibaca lewat *color sampler* (dibagi 2 ronde karena Photoshop 28.2 membatasi **10 sampler/dokumen**), lalu disusun jadi palet 5 peran (base = warna dominan, aksen = paling jenuh, tinta dipaksa ≥ 4,5:1) dan disimpan sebagai palet simpanan.
+- **Simpan/Buka proyek** (`.sampul.json`) → semua pilihan (palet, font, teks, setelan liput penuh, ISBN) dalam satu berkas teks.
+
 ---
 
 ## Cara kerja rekomendasinya
@@ -105,7 +115,10 @@ Berhenti memakai: hapus foldernya dari `External`. Developer Mode sebaiknya dima
 - **4.800 kombinasi generator** (200 warna × 5 harmoni × 2 nada): 0 palet cacat, aksen terburuk **4,50:1**, tinta terburuk 14,7:1, redup terburuk 4,07:1;
 - 28 palet kurasi: tinta ≥ 4,5:1 dan aksen ≥ 3:1 untuk semuanya;
 - 10 rasa punya palet **dan** pasangan font (dulu "misterius" nol);
-- `pruneCustom` membuang palet kembar/cacat dan membatasi 24 entri.
+- `pruneCustom` membuang palet kembar/cacat dan membatasi 24 entri;
+- **geometri liput penuh**: sheet = bleed + trim + punggung + trim + bleed (mis. 6×9 in, 180 hal kertas putih → 3811×2776 px, punggung 11,43 mm), punggung krem 320 hal = 25,4 mm, panel berurutan tanpa celah;
+- **ekstraksi**: sampel 1 warna tetap menghasilkan palet valid dengan tinta ≥ 4,5:1; sampel kosong mengembalikan `null`, bukan palet rusak;
+- **proyek**: serialize → ubah state → apply → semua nilai pulih; berkas yang bukan proyek ditolak dengan pesan jelas.
 
 ---
 
@@ -151,12 +164,22 @@ Untuk pasangan font: objek dengan `heading` + `body` — `family`, `aliases` (na
 | Teks muncul di tengah kanvas, bukan posisi | perintah `move offset` ditolak (mis. layer terkunci) — geser manual sekali, lalu pakai **Teks ke dokumen aktif** |
 | Judul lebih kecil/besar dari perkiraan | lihat log: panel mencetak ukuran kanvas hasil baca AM dan pt judul yang dihitung |
 | "Sampul dibuat" tapi warna/latar tidak sesuai | tekan **Uji aksi Photoshop**; baris `!!` menunjukkan deskriptor mana yang ditolak PS versi ini |
+| **Ekspor PDF** membuka dialog, bukan langsung tersimpan | memang begitu: build 28.2 menolak save-PDF dari panel; pilih format PDF di dialog, atau pakai **File → Save As** |
 | `Expected the host attribute to be an object` | UXP 10 minta `host` objek, bukan array — sudah diperbaiki di `manifest.json` |
 | Data lama tampil aneh | **Bersihkan palet simpanan**, atau hapus `%APPDATA%\Adobe\UXP\PluginsStorage\PHSPBETA\28\External\com.99desains.sampul` |
 
 ---
 
 ## Versi
+
+**1.4.0** — cetak & ekspor
+- *Fitur*: liput penuh (bleed + punggung + trim) untuk KDP/BookBaby/offset dengan tebal kertas putih/krem/warna premium, peringatan halaman minimum & lebar punggung, garis panduan trim/bleed, dan teks punggung otomatis diputar 90° (dilewati bila punggung terlalu sempit).
+- *Fitur*: ekspor JPG/PNG/PSD/PSB lewat pemilih berkas, thumbnail 300 px dari salinan dokumen, PDF lewat dialog bawaan.
+- *Fitur*: ekstraksi palet dari dokumen aktif lewat 20 titik color sampler (2 ronde — batas Photoshop 28.2: 10 sampler/dokumen; `get colorSamplerList` hanya berhasil setelah sampler dibuat), disusun jadi 5 peran dengan tinta dipaksa ≥ 4,5:1.
+- *Fitur*: proyek `.sampul.json` (simpan/buka) — semua pilihan termasuk setelan liput penuh dan ISBN.
+- *Izin*: `localFileSystem: "fullAccess"` ditambahkan untuk pemilih berkas (sama seperti panel bawaan Adobe).
+- *Teruji di Photoshop 28.2 lewat Action Manager*: `newGuide` (5 garis), `rotate` 90° (bounds menukar), `duplicate` + `imageSize` 300 px proporsional, `delete` sampler `allEnum`, `save` PNG/JPG, dan baca `colorSamplerList`.
+- *Uji mandiri*: 110 pemeriksaan (geometri liput, ekstraksi, proyek, aksi panel, deskriptor AM).
 
 **1.3.0** — perbaikan hasil audit
 - *Bug*: pratinjau sampul menampilkan `<br />` sebagai teks pada judul multi-baris (escape sebelum join).
@@ -172,4 +195,4 @@ Untuk pasangan font: objek dengan `heading` + `body` — `family`, `aliases` (na
 
 ## Yang masih direncanakan
 
-Mode buku penuh (bleed + spine + sampul wrap preset KDP/BookBaby), ekspor PDF print-ready & thumbnail toko, palet diambil dari foto dokumen aktif, penyimpanan `.sampul.json` per proyek (butuh izin `fullAccess`), integrasi dengan Font Manager lokal, lalu paket `.ccw3` bertanda tangan supaya tidak perlu Developer Mode.
+Integrasi dengan Font Manager lokal (`C:\Users\inomi\Documents\Font`, port 4317) untuk memasang font yang hilang langsung dari panel, preset ukuran buku non-KDP (mis. IngramSpark), lalu paket `.ccw3` bertanda tangan supaya tidak perlu Developer Mode.

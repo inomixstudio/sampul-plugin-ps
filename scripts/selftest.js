@@ -92,7 +92,9 @@ try {
 const g = ctx;
 /* const/let di puncak skrip tidak jadi properti globalThis — ekspor sekali. */
 vm.runInContext("globalThis.T = { PALETTES: PALETTES, PAIRINGS: PAIRINGS, GENRES: GENRES, FEELS: FEELS, " +
-  "SCHEMES: SCHEMES, PRESETS: PRESETS, MAX_CUSTOM: MAX_CUSTOM, PICK_LIMIT: PICK_LIMIT, state: state };", ctx);
+  "SCHEMES: SCHEMES, PRESETS: PRESETS, PAPERS: PAPERS, WRAP_FORMATS: WRAP_FORMATS, BLEEDS: BLEEDS, " +
+  "MAX_CUSTOM: MAX_CUSTOM, PICK_LIMIT: PICK_LIMIT, state: state, wrapGeom: wrapGeom, wrapGuideLines: wrapGuideLines, " +
+  "paletteFromSamples: paletteFromSamples, serializeProject: serializeProject, applyProject: applyProject };", ctx);
 g.t_ = g.T;
 const PALETTES = g.T.PALETTES, PAIRINGS = g.T.PAIRINGS, state = g.T.state;
 t("mode demo terdeteksi (tidak ada Photoshop)", g.PS.live === false);
@@ -270,15 +272,118 @@ t("ada pegang debug untuk konsol UXP", has(/window\.SAMPUL\s*=/));
 section("== 10. Bawaan lama yang harus hilang ==");
 t("README tidak lagi mengklaim 94 KB", fs.readFileSync(path.join(ROOT, "README.md"), "utf8").indexOf("94 KB") < 0);
 const man = JSON.parse(fs.readFileSync(path.join(ROOT, "manifest.json"), "utf8"));
-t("manifest v1.3.0", man.version === "1.3.0", "-> " + man.version);
-t("manifest: tanpa izin file system, izin clipboard sesuai panel bawaan Adobe",
-  man.requiredPermissions.localFileSystem === undefined && man.requiredPermissions.clipboard === "readAndWrite",
+t("manifest v1.4.0", man.version === "1.4.0", "-> " + man.version);
+t("manifest: izin clipboard + berkas untuk pemilih file (sesuai panel bawaan Adobe)",
+  man.requiredPermissions.localFileSystem === "fullAccess" && man.requiredPermissions.clipboard === "readAndWrite",
   "-> " + JSON.stringify(man.requiredPermissions));
 t("manifest punya ikon", Array.isArray(man.icons) && man.icons.length === 2);
 t("file ikon ada (termasuk varian @1x yang dicari UXP)",
   ["icon_D.png", "icon_D@1x.png", "icon_D@2x.png", "icon_N.png", "icon_N@1x.png", "icon_N@2x.png"]
     .every(function (f) { return fs.existsSync(path.join(ROOT, "icons", f)); }));
 t("host berupa objek (bukan array)", !Array.isArray(man.host) && man.host.app === "PS");
+
+section("== 11. Liput penuh (fitur v1.4) ==");
+{
+  const save = JSON.parse(JSON.stringify(g.T.state.wrap));
+  const reset = function (patch) {
+    Object.assign(g.T.state.wrap, { format: "kdp", paper: "putih", pages: 180, bleed: "in125", spine: true }, patch);
+  };
+  reset({});
+  const G = g.T.wrapGeom();
+  t("sheet = bleed + trim belakang + punggung + trim depan + bleed",
+    G.totalW === 2 * G.bleedPx + 2 * G.trimW + G.spinePx,
+    "-> " + G.totalW + " = 2*" + G.bleedPx + " + 2*" + G.trimW + " + " + G.spinePx);
+  t("tinggi sheet = bleed + trim + bleed",
+    G.totalH === 2 * G.bleedPx + G.trimH, "-> " + G.totalH);
+  t("punggung 180 hal kertas putih = 11,43 mm", Math.abs(G.spineMm - 0.0635 * 180) < 0.01,
+    "-> " + G.spineMm.toFixed(2) + " mm");
+  t("panel belakang/punggung/depan berurutan tanpa celah",
+    G.back.x1 === G.spine.x0 && G.spine.x1 === G.front.x0 && G.front.x1 === G.totalW - G.bleedPx);
+  t("teks punggung dilarang di bawah patokan halaman format",
+    G.spineTextOk === (180 >= G.format.spineTextPages), "-> " + G.spineTextOk);
+  reset({ pages: 70 });
+  t("peringatan untuk teks punggung yang terlalu sempit",
+    g.T.wrapGeom().warnings.some(function (w) { return /jilid|punggung/i.test(w); }),
+    "-> " + JSON.stringify(g.T.wrapGeom().warnings));
+  reset({ pages: 320 });
+  const G2 = g.T.wrapGeom();
+  t("halaman 320: teks punggung boleh", G2.spineTextOk && !G2.warnings.some(function (w) { return /jilid|punggung/i.test(w); }));
+  reset({ pages: 5 });
+  t("halaman di bawah minimum format diberi peringatan",
+    g.T.wrapGeom().warnings.some(function (w) { return /minimum/i.test(w); }));
+  reset({ bleed: "none" });
+  t("bleed 0 diberi peringatan",
+    g.T.wrapGeom().warnings.some(function (w) { return /bleed/i.test(w); }));
+  reset({ paper: "krem", pages: 320 });
+  t("kertas krem 320 hal = 25,4 mm", Math.abs(g.T.wrapGeom().spineMm - 0.0794 * 320) < 0.02,
+    "-> " + g.T.wrapGeom().spineMm.toFixed(2) + " mm");
+  t("garis panduan trim = 5 vertikal + 2 horizontal",
+    (function () { const l = g.T.wrapGuideLines(g.T.wrapGeom()); return l.filter(function (x) { return x.o === "vertical"; }).length === 5 && l.filter(function (x) { return x.o === "horizontal"; }).length === 2; })());
+  reset(save);
+}
+
+section("== 12. Ekstraksi warna dari sampel ==");
+{
+  t("sampel kosong -> null", g.T.paletteFromSamples([]) === null && g.T.paletteFromSamples(null) === null);
+  const samples = [];
+  for (let i = 0; i < 14; i++) samples.push("#141820");
+  for (let i = 0; i < 4; i++) samples.push("#2E3A4A");
+  samples.push("#E23E3E", "#C7A45A");
+  const pal = g.T.paletteFromSamples(samples);
+  t("menghasilkan 5 peran hex valid", pal && ["base", "surface", "accent", "ink", "muted"].every(function (k) { return /^#[0-9A-F]{6}$/.test(pal.colors[k]); }),
+    "-> " + JSON.stringify(pal.colors));
+  t("base = warna paling sering", pal.colors.base === "#141820", "-> " + pal.colors.base);
+  t("aksen bukan warna latar", pal.colors.accent !== pal.colors.base, "-> " + pal.colors.accent);
+  t("ink kontras >= 4,5:1 di atas base", g.contrastRatio(pal.colors.ink, pal.colors.base) >= 4.5,
+    "-> " + g.contrastRatio(pal.colors.ink, pal.colors.base).toFixed(2) + ":1");
+  const flat = g.T.paletteFromSamples(["#808080", "#808080"]);
+  t("sampel satu warna tetap sah (ink dipaksa kontras)",
+    flat && g.contrastRatio(flat.colors.ink, flat.colors.base) >= 4.5,
+    "-> ink " + flat.colors.ink);
+}
+
+section("== 13. Proyek .sampul.json ==");
+{
+  const st = g.T.state;
+  st.cover.title = "JUDUL UJI PROYEK";
+  st.wrap.pages = 250;
+  st.wrap.publisher = "Penerbit Uji";
+  st.wrap.isbn = "978-602-0000-00-0";
+  st.genScheme = "triadic";
+  st.genTone = "light";
+  const json = g.T.serializeProject();
+  const d = JSON.parse(json);
+  t("berkas proyek punya kind yang benar", d.kind === "sampul.project" && !!d.state && !!d.computed);
+  t("geometri ikut tercatat di proyek", typeof d.computed.wrapGeom.totalW === "number" && d.computed.wrapGeom.dpi > 0);
+  st.cover.title = "BERUBAH";
+  st.wrap.pages = 10;
+  st.wrap.publisher = "";
+  const err = g.T.applyProject(json);
+  t("applyProject tidak error", err === null, "-> " + err);
+  t("nilai pulih dari proyek",
+    st.cover.title === "JUDUL UJI PROYEK" && st.wrap.pages === 250 && st.wrap.publisher === "Penerbit Uji" && st.wrap.isbn === "978-602-0000-00-0");
+  t("skema generator ikut pulih", st.genScheme === "triadic" && st.genTone === "light");
+  t("berkas asal ditolak dengan pesan jelas",
+    typeof g.T.applyProject("bukan json") === "string" && typeof g.T.applyProject(JSON.stringify({ kind: "lain" })) === "string");
+}
+
+section("== 14. Aksi baru di panel ==");
+["build-wrap", "wrap-guides", "extract-colors", "export-pdf", "export-jpg", "export-png", "export-psd",
+  "export-thumb", "save-project", "open-project", "toggle-spine"]
+  .forEach(function (act) {
+    t("aksi ada: " + act, has(new RegExp('case "' + act + '"')) && new RegExp('data-act="' + act + '"').test(HTML));
+  });
+/* Chip pilihan dirender oleh JS, jadi yang dicek adalah pemakaian chipHTML-nya. */
+["pick-format", "pick-paper", "pick-bleed"].forEach(function (act) {
+  t("chip aksi ada: " + act, has(new RegExp('case "' + act + '"')) && has(new RegExp('"' + act + '",')));
+});
+t("tab Cetak & Ekspor ada di HTML", /data-pane="cetak"/.test(HTML) && /data-tab="cetak"/.test(HTML));
+t("ekspansi sampler dibatasi 10 per ronde (batas PS 28.2)",
+  has(/SAMPLER_MAX\s*=\s*10/) && has(/gridPoints\(/));
+t("baca warna sampler lewat colorSamplerList (bukan get per-sampler)",
+  has(/_props:\s*\["colorSamplerList"\]/) && none(/putIndex\(sid\("colorSampler"\)/));
+t("saveAs memakai file token UXP, AM jadi cadangan",
+  has(/getFileForSaving/) && has(/doc\.saveAs\[/) && has(/PNGFormat/));
 
 console.log("\n" + "-".repeat(52));
 console.log("HASIL: " + ok + " lolos, " + bad + " gagal");

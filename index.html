@@ -22,6 +22,7 @@
       <button class="tab is-active" data-tab="warna">Warna</button>
       <button class="tab" data-tab="tipografi">Tipografi</button>
       <button class="tab" data-tab="bangun">Bangun</button>
+      <button class="tab" data-tab="cetak">Cetak &amp; Ekspor</button>
     </nav>
 
     <main class="pane" id="pane">
@@ -138,6 +139,61 @@
         </div>
 
         <div class="log" id="log"></div>
+      </section>
+
+      <!-- ============ CETAK & EKSPOR ============ -->
+      <section class="tabpane" data-pane="cetak">
+        <div class="block">
+          <div class="block-head">
+            <h2>Liput penuh</h2>
+            <span class="hint">belakang + punggung + depan</span>
+          </div>
+          <div class="field">
+            <span>Format cetak</span>
+            <div class="chips" id="wrapFormatChips"></div>
+          </div>
+          <div class="field">
+            <span>Jenis kertas</span>
+            <div class="chips" id="wrapPaperChips"></div>
+          </div>
+          <div class="field">
+            <span>Bleed</span>
+            <div class="chips" id="wrapBleedChips"></div>
+          </div>
+          <label class="field"><span>Jumlah halaman</span><input id="fPages" class="input" inputmode="numeric" /></label>
+          <label class="field"><span>Penerbit</span><input id="fPublisher" class="input" /></label>
+          <label class="field"><span>Blurb / sinopsis</span><input id="fBlurb" class="input" /></label>
+          <label class="field"><span>ISBN (untuk proyek)</span><input id="fIsbn" class="input" /></label>
+          <button class="chip wide" id="fSpine" data-act="toggle-spine">Teks punggung: aktif</button>
+          <div class="wrap-summary" id="wrapSummary"></div>
+          <div class="warn-list" id="wrapWarnings"></div>
+          <div class="btn-row wrap">
+            <button class="btn primary" data-act="build-wrap">Bangun liput penuh</button>
+            <button class="btn small" data-act="wrap-guides">Garis panduan trim/bleed</button>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-head"><h2>Ekspor</h2><span class="hint">dari dokumen aktif</span></div>
+          <div class="btn-row wrap">
+            <button class="btn small" data-act="export-pdf">PDF</button>
+            <button class="btn small" data-act="export-jpg">JPG</button>
+            <button class="btn small" data-act="export-png">PNG</button>
+            <button class="btn small" data-act="export-psd">PSD</button>
+            <button class="btn small" data-act="export-thumb">Thumbnail 300 px</button>
+          </div>
+          <p class="lede">JPG/PNG/PSD tersimpan setelah memilih lokasi. PDF lewat dialog bawaan Photoshop — build 28.2 menolak save-PDF langsung dari panel.</p>
+        </div>
+
+        <div class="block">
+          <div class="block-head"><h2>Warna &amp; proyek</h2></div>
+          <div class="btn-row wrap">
+            <button class="btn small" data-act="extract-colors">Ambil warna dari dokumen</button>
+            <button class="btn small" data-act="save-project">Simpan proyek</button>
+            <button class="btn small" data-act="open-project">Buka proyek</button>
+          </div>
+          <p class="lede">Ekstraksi membaca 20 titik warna (2 ronde color sampler — batas Photoshop 10 sampler/dokumen) lalu menyusunnya jadi palet 5 peran. Proyek tersimpan sebagai berkas <b>.sampul.json</b>.</p>
+        </div>
       </section>
 
     </main>
