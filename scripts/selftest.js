@@ -272,9 +272,10 @@ t("ada pegang debug untuk konsol UXP", has(/window\.SAMPUL\s*=/));
 section("== 10. Bawaan lama yang harus hilang ==");
 t("README tidak lagi mengklaim 94 KB", fs.readFileSync(path.join(ROOT, "README.md"), "utf8").indexOf("94 KB") < 0);
 const man = JSON.parse(fs.readFileSync(path.join(ROOT, "manifest.json"), "utf8"));
-t("manifest v1.4.0", man.version === "1.4.0", "-> " + man.version);
-t("manifest: izin clipboard + berkas untuk pemilih file (sesuai panel bawaan Adobe)",
-  man.requiredPermissions.localFileSystem === "fullAccess" && man.requiredPermissions.clipboard === "readAndWrite",
+t("manifest v1.5.0", man.version === "1.5.0", "-> " + man.version);
+t("manifest: izin clipboard + berkas + jaringan lokal (Font Manager)",
+  man.requiredPermissions.localFileSystem === "fullAccess" && man.requiredPermissions.clipboard === "readAndWrite" &&
+  JSON.stringify(man.requiredPermissions.network) === JSON.stringify({ domains: ["http://127.0.0.1:4317"] }),
   "-> " + JSON.stringify(man.requiredPermissions));
 t("manifest punya ikon", Array.isArray(man.icons) && man.icons.length === 2);
 t("file ikon ada (termasuk varian @1x yang dicari UXP)",
@@ -295,7 +296,7 @@ section("== 11. Liput penuh (fitur v1.4) ==");
     "-> " + G.totalW + " = 2*" + G.bleedPx + " + 2*" + G.trimW + " + " + G.spinePx);
   t("tinggi sheet = bleed + trim + bleed",
     G.totalH === 2 * G.bleedPx + G.trimH, "-> " + G.totalH);
-  t("punggung 180 hal kertas putih = 11,43 mm", Math.abs(G.spineMm - 0.0635 * 180) < 0.01,
+  t("punggung 180 hal kertas putih = 10,30 mm (KDP 0,002252 in/hal)", Math.abs(G.spineMm - 0.002252 * 180 * 25.4) < 0.02,
     "-> " + G.spineMm.toFixed(2) + " mm");
   t("panel belakang/punggung/depan berurutan tanpa celah",
     G.back.x1 === G.spine.x0 && G.spine.x1 === G.front.x0 && G.front.x1 === G.totalW - G.bleedPx);
@@ -315,8 +316,26 @@ section("== 11. Liput penuh (fitur v1.4) ==");
   t("bleed 0 diberi peringatan",
     g.T.wrapGeom().warnings.some(function (w) { return /bleed/i.test(w); }));
   reset({ paper: "krem", pages: 320 });
-  t("kertas krem 320 hal = 25,4 mm", Math.abs(g.T.wrapGeom().spineMm - 0.0794 * 320) < 0.02,
+  t("kertas krem 320 hal = 20,32 mm (KDP 0,0025 in/hal)", Math.abs(g.T.wrapGeom().spineMm - 0.0025 * 320 * 25.4) < 0.02,
     "-> " + g.T.wrapGeom().spineMm.toFixed(2) + " mm");
+  t("angka tebal kertas = nilai resmi KDP",
+    (function () {
+      const p = g.T.PAPERS;
+      return Math.abs(p.putih.per.kdp - 0.002252) < 1e-9 && Math.abs(p.krem.per.kdp - 0.0025) < 1e-9 && Math.abs(p.warna.per.kdp - 0.002347) < 1e-9;
+    })(), "-> " + JSON.stringify(g.T.PAPERS.putih.per));
+  reset({ pages: 181 });
+  t("halaman ganjil dibulatkan ke genap (181 -> 182)",
+    g.T.wrapGeom().effPages === 182 && g.T.wrapGeom().warnings.some(function (w) { return /genap/.test(w); }),
+    "-> effPages " + g.T.wrapGeom().effPages);
+  reset({ format: "ingram", pages: 320, paper: "krem" });
+  t("IngramSpark: peringatan \"cocokkan template resmi\" selalu muncul",
+    g.T.wrapGeom().warnings.some(function (w) { return /template resmi/.test(w); }),
+    "-> " + JSON.stringify(g.T.wrapGeom().warnings).slice(0, 120));
+  t("IngramSpark memakai perkiraan PPI stok (400 PPI krem = 0,0025 in/hal)",
+    Math.abs(g.T.wrapGeom().perIn - 0.0025) < 1e-9 && g.T.WRAP_FORMATS.ingram.bleed === "in125");
+  reset({ pages: 900 });
+  t("halaman melebihi maksimum format diberi peringatan",
+    g.T.wrapGeom().warnings.some(function (w) { return /maksimum/.test(w); }));
   t("garis panduan trim = 5 vertikal + 2 horizontal",
     (function () { const l = g.T.wrapGuideLines(g.T.wrapGeom()); return l.filter(function (x) { return x.o === "vertical"; }).length === 5 && l.filter(function (x) { return x.o === "horizontal"; }).length === 2; })());
   reset(save);
@@ -384,6 +403,18 @@ t("baca warna sampler lewat colorSamplerList (bukan get per-sampler)",
   has(/_props:\s*\["colorSamplerList"\]/) && none(/putIndex\(sid\("colorSampler"\)/));
 t("saveAs memakai file token UXP, AM jadi cadangan",
   has(/getFileForSaving/) && has(/doc\.saveAs\[/) && has(/PNGFormat/));
+
+section("== 15. Font Manager lokal ==");
+t("modul FM menyentuh hanya 127.0.0.1:4317",
+  has(/127\.0\.0\.1:4317/) && has(/\/api\/status/) && has(/\/api\/install/) && has(/\/api\/scan/));
+t("pemasangan font membaca biner berkas lalu POST ke /install",
+  has(/format:\s*"binary"/) && has(/Content-Type":\s*"application\/octet-stream"/));
+["fm-check", "fm-install", "fm-open"].forEach(function (act) {
+  t("aksi ada: " + act, has(new RegExp('case "' + act + '"')) && new RegExp('data-act="' + act + '"').test(HTML));
+});
+t("pemilih berkas font menerima ttf/otf/ttc/otc", has(/font:\s*\["ttf",\s*"otf",\s*"ttc",\s*"otc"\]/));
+t("setelah pasang, daftar font dibaca ulang lalu panel dirender",
+  has(/FM\.install\([\s\S]{0,600}FM\.scan\(\)[\s\S]{0,400}PS\.loadFonts\(\)/));
 
 console.log("\n" + "-".repeat(52));
 console.log("HASIL: " + ok + " lolos, " + bad + " gagal");

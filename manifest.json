@@ -1,7 +1,7 @@
 {
   "id": "com.99desains.sampul",
   "name": "Sampul - Palet & Tipografi",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "main": "index.html",
   "manifestVersion": 5,
   "host": {
@@ -14,7 +14,10 @@
   },
   "requiredPermissions": {
     "clipboard": "readAndWrite",
-    "localFileSystem": "fullAccess"
+    "localFileSystem": "fullAccess",
+    "network": {
+      "domains": ["http://127.0.0.1:4317"]
+    }
   },
   "icons": [
     {

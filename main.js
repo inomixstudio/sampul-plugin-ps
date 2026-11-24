@@ -71,18 +71,24 @@ const PRESETS = {
 
 /* ---- sampul liput penuh: kertas, lebarkan jilid, lalu bleed ---- */
 
-/* Tebal per halaman dari tabel KDP (satuan mm/halaman). Cetak offset lain bisa beda,
-   jadi angka ini dipakai sebagai patokan, bukan jaminan. */
+/* Tebal per halaman (inci). Sumber angka:
+   - KDP resmi (kdp.amazon.com, "Spine measurements"): putih 0,002252", krem 0,0025",
+     groundwood 0,00235", warna premium 0,002347"; jumlah halaman dibulatkan ke genap.
+   - IngramSpark TIDAK menerbitkan angka per halaman — nilai dihitung dari PPI stok
+     mereka (putih 50 lb = 444 PPI, krem 50 lb = 400 PPI) sebagai perkiraan dan
+     WAJIB dicocokkan ke template resmi sebelum cetak.
+   - BookBaby memakai angka KDP sebagai patokan; resminya ikut template mereka. */
 const PAPERS = {
-  putih: { label: "Kertas putih", mmPerPage: 0.0635, note: "0,0025 in/halaman (KDP)" },
-  krem:  { label: "Kertas krem",  mmPerPage: 0.0794, note: "0,003125 in/halaman (KDP)" },
-  warna: { label: "Warna premium", mmPerPage: 0.1016, note: "0,004 in/halaman (KDP)" }
+  putih: { label: "Kertas putih",  per: { kdp: 0.002252, bookbaby: 0.002252, ingram: 0.002252, offset: 0.002252 }, note: "KDP 0,002252 in/hal \u00b7 IngramSpark 444 PPI" },
+  krem:  { label: "Kertas krem",   per: { kdp: 0.0025,   bookbaby: 0.0025,   ingram: 0.0025,   offset: 0.0025   }, note: "KDP 0,0025 in/hal \u00b7 IngramSpark 400 PPI" },
+  warna: { label: "Warna premium", per: { kdp: 0.002347, bookbaby: 0.002347, ingram: 0.002347, offset: 0.002347 }, note: "KDP 0,002347 in/hal (warna premium)" }
 };
 
 const WRAP_FORMATS = {
-  kdp:      { label: "KDP paperback", bleed: "in125", minPages: 24, spineTextPages: 100, barcodeIn: [2, 1.2] },
-  bookbaby: { label: "BookBaby",      bleed: "in125", minPages: 24, spineTextPages: 80,  barcodeIn: [2, 1.2] },
-  offset:   { label: "Offset umum",   bleed: "b3",    minPages: 16, spineTextPages: 80,  barcodeIn: [2, 1.2] }
+  kdp:      { label: "KDP paperback", bleed: "in125", minPages: 24, maxPages: 828,  spineTextPages: 100, barcodeIn: [2, 1.2], evenPages: true },
+  bookbaby: { label: "BookBaby",      bleed: "in125", minPages: 24, maxPages: 700,  spineTextPages: 100, barcodeIn: [2, 1.2], evenPages: true },
+  ingram:   { label: "IngramSpark",   bleed: "in125", minPages: 18, maxPages: 1200, spineTextPages: 100, barcodeIn: [2, 1.2], evenPages: true, caution: true },
+  offset:   { label: "Offset umum",   bleed: "b3",    minPages: 16, maxPages: 2000, spineTextPages: 80,  barcodeIn: [2, 1.2], evenPages: true }
 };
 
 const BLEEDS = {
@@ -105,8 +111,13 @@ function wrapGeom() {
   var pages = clamp(Math.round(Number(w.pages) || 0), 0, 3000);
 
   var pxPerMm = dpi / MM_IN;
-  var spineMm = paper.mmPerPage * pages;
-  var spinePx = Math.round(spineMm * pxPerMm);
+  /* Cetak selalu menghitung punggung dari jumlah halaman genap (KDP membulatkan
+     ke atas); IngramSpark tidak menerbitkan angka per halaman — lihat PAPERS. */
+  var effPages = (fmt.evenPages && pages % 2) ? pages + 1 : pages;
+  var perIn = (paper.per && paper.per[w.format] !== undefined) ? paper.per[w.format] : paper.per.kdp;
+  var spineIn = perIn * effPages;
+  var spineMm = spineIn * MM_IN;
+  var spinePx = Math.round(spineIn * dpi);
   var bleedPx = Math.round(bleed.mm * pxPerMm);
   var trimW = preset.w, trimH = preset.h;
   var totalW = bleedPx * 2 + trimW * 2 + spinePx;
@@ -122,17 +133,21 @@ function wrapGeom() {
 
   var warn = [];
   if (pages < fmt.minPages) warn.push("Halaman kurang dari minimum " + fmt.minPages + " untuk " + fmt.label + ".");
-  if (w.spine && pages < fmt.spineTextPages) warn.push("Jilid " + spineMm.toFixed(1) + " mm terlalu sempit untuk teks (umumnya butuh " + fmt.spineTextPages + " halaman).");
+  if (fmt.maxPages && pages > fmt.maxPages) warn.push("Halaman melebihi maksimum " + fmt.maxPages + " untuk " + fmt.label + ".");
+  if (effPages !== pages) warn.push("Jumlah halaman dibulatkan ke genap: " + pages + " \u2192 " + effPages + " (aturan cetak)." );
+  if (w.spine && effPages < fmt.spineTextPages) warn.push("Jilid " + spineMm.toFixed(1) + " mm terlalu sempit untuk teks (patokan " + fmt.spineTextPages + " halaman).");
   if (!bleed.mm) warn.push("Bleed 0: tepi tidak menyisakan kertas potong.");
   if (trimW * 2 + spinePx > 8000) warn.push("Lebar sheet sangat besar; komputer lama bisa lambat.");
+  if (fmt.caution) warn.push(fmt.label + " tidak menerbitkan tebal per halaman; " + perIn + " in/hal adalah perkiraan dari PPI stok \u2014 cocokkan dengan template resmi sebelum cetak.");
 
   return {
-    dpi: dpi, pages: pages, paper: paper, format: fmt, bleed: bleed,
-    trimW: trimW, trimH: trimH, spinePx: spinePx, spineMm: spineMm, spineIn: spineMm / MM_IN,
+    dpi: dpi, pages: pages, effPages: effPages, perIn: perIn,
+    paper: paper, format: fmt, bleed: bleed,
+    trimW: trimW, trimH: trimH, spinePx: spinePx, spineMm: spineMm, spineIn: spineIn,
     bleedPx: bleedPx, totalW: totalW, totalH: totalH,
     back: back, spine: spine, front: front,
     barcode: { w: barcodeW, h: barcodeH, pad: barcodePad, x0: back.x0 + barcodePad, y0: totalH - bleedPx - barcodePad - barcodeH },
-    spineTextOk: pages >= fmt.spineTextPages,
+    spineTextOk: effPages >= fmt.spineTextPages,
     mm: { totalW: totalW / pxPerMm, totalH: totalH / pxPerMm, trimW: trimW / pxPerMm, trimH: trimH / pxPerMm, bleed: bleed.mm },
     inch: { totalW: totalW / dpi, totalH: totalH / dpi },
     warnings: warn
@@ -1410,7 +1425,8 @@ var PS = (function () {
 
   /* ---------- ekspor: file token lalu saveAs inti, fallback AM ---------- */
   var SAVE_TYPES = {
-    png: ["png"], jpg: ["jpg", "jpeg"], psd: ["psd"], psb: ["psb"], gif: ["gif"], bmp: ["bmp"], pdf: ["pdf"], json: ["json"]
+    png: ["png"], jpg: ["jpg", "jpeg"], psd: ["psd"], psb: ["psb"], gif: ["gif"], bmp: ["bmp"], pdf: ["pdf"], json: ["json"],
+    font: ["ttf", "otf", "ttc", "otc"]
   };
   var AM_SAVE = {
     png: function () { return { cls: "PNGFormat", opts: { bitDepth: 8, embedColors: true, interlace: false } }; },
@@ -1437,6 +1453,10 @@ var PS = (function () {
       return { description: ext.toUpperCase(), extension: ext };
     });
     return Promise.resolve(lfs.getFileForOpening({ types: types, allowMultiple: false }));
+  }
+
+  function pickFontFile() {
+    return pickOpen("font");
   }
 
   function docSaveAs(fmt, entry) {
@@ -1596,6 +1616,7 @@ var PS = (function () {
     saveThumb: saveThumb,
     saveProject: saveProject,
     openProject: openProject,
+    pickFontFile: pickFontFile,
     capabilities: capabilities,
     paths: function () { return { create: lastCreatePath, text: lastTextPath }; }
   };
@@ -2077,11 +2098,14 @@ function renderWrap() {
 
   var sum = $("#wrapSummary");
   if (sum) {
+    var pagesLabel = (g.effPages === g.pages ? String(g.pages) : g.pages + " \u2192 " + g.effPages) + " hal";
     sum.innerHTML =
       '<div class="metric"><b>Sheet</b> ' + g.totalW + " x " + g.totalH + ' px</div>' +
       '<div class="metric"><b>Trim</b> ' + (g.trimW / g.dpi).toFixed(2) + " x " + (g.trimH / g.dpi).toFixed(2) + " in (" +
         Math.round(g.mm.trimW) + " x " + Math.round(g.mm.trimH) + ' mm)</div>' +
-      '<div class="metric"><b>Punggung</b> ' + g.spineMm.toFixed(1) + " mm (" + g.spineIn.toFixed(2) + " in) dari " + g.pages + " hal " + esc(g.paper.label.toLowerCase()) + '</div>' +
+      '<div class="metric"><b>Punggung</b> ' + g.spineMm.toFixed(1) + " mm (" + g.spineIn.toFixed(2) + " in) dari " +
+        pagesLabel + " " + esc(g.paper.label.toLowerCase()) + '</div>' +
+      '<div class="metric"><b>Tebal kertas</b> ' + g.perIn.toFixed(6).replace(/0+$/, "") + " in/hal</div>" +
       '<div class="metric"><b>Bleed</b> ' + g.bleed.mm + " mm tiap sisi</div>" +
       '<div class="metric"><b>Ukuran file ±</b> ' + Math.round(g.totalW * g.totalH * 3 / 1024 / 1024) + " MB (RGB 8-bit)</div>";
   }
@@ -2621,7 +2645,54 @@ function cssForPalette(p) {
     "}";
 }
 
-/* ============================ 8. EVENT ============================ */
+/* ============================ 8. FONT MANAGER LOKAL ============================ */
+
+/* Font Manager (folder Documents\Font) menjalankan server kecil di 127.0.0.1:4317
+   dengan endpoint /api/status, /api/install (body = byte font), dan /api/scan.
+   Panel hanya bicara dengan port itu — tidak ada tujuan jaringan lain. */
+var FM = (function () {
+  var BASE = "http://127.0.0.1:4317/api";
+
+  function req(path, opts) {
+    return fetch(BASE + path, opts || {}).then(function (r) {
+      return Promise.resolve(r.text()).then(function (txt) {
+        var data = null;
+        try { data = JSON.parse(txt); } catch (e) { data = null; }
+        return { ok: r.ok, status: r.status, data: data, text: txt };
+      });
+    });
+  }
+
+  return {
+    base: BASE,
+    status: function () { return req("/status"); },
+    install: function (filename, bytes) {
+      return req("/install?filename=" + encodeURIComponent(filename), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-Font-Name": filename,
+          "X-FM-Request": "1" /* syarat anti-CSRF milik Font Manager */
+        },
+        body: bytes
+      });
+    },
+    scan: function () {
+      return req("/scan", { method: "POST", headers: { "X-FM-Request": "1" } });
+    },
+    open: function () {
+      var shell = null;
+      try { shell = require("uxp").shell; } catch (e) { shell = null; }
+      if (shell && typeof shell.openExternal === "function") {
+        shell.openExternal("http://127.0.0.1:4317");
+        return true;
+      }
+      return false;
+    }
+  };
+})();
+
+/* ============================ 9. EVENT ============================ */
 
 function setTab(name) {
   $$("#tabs .tab").forEach(function (t) {
@@ -3001,6 +3072,66 @@ function handleAction(act, el) {
         log("!! Buka proyek: " + msgOf(e));
         setStatus("Buka proyek gagal — lihat log.", "err");
       });
+      break;
+    }
+
+    case "fm-check": {
+      setStatus("Mengecek Font Manager…");
+      FM.status().then(function (r) {
+        if (r && r.ok && r.data && r.data.ok) {
+          var d = r.data;
+          setStatus("Font Manager aktif di port " + (d.port || 4317) + ".", "ok");
+          log("Font Manager aktif: " + (d.platform || "?") + " \u00b7 font user: " + ((d.dirs && d.dirs.user) || "?"));
+        } else {
+          setStatus("Font Manager tidak merespons di port 4317.", "err");
+          log("!! Font Manager menjawab HTTP " + (r ? r.status : "-") + " — jalankan start.bat di folder Font, lalu cek lagi.");
+        }
+      }, function (e) {
+        setStatus("Font Manager tidak terdeteksi.", "err");
+        log("!! Cek Font Manager: " + msgOf(e) + " — jalankan start.bat di folder Font.");
+      });
+      break;
+    }
+
+    case "fm-install": {
+      if (!PS.live) { log("[demo] pasang font butuh Photoshop (pemilih berkas)."); break; }
+      setStatus("Pilih berkas font…");
+      PS.pickFontFile().then(function (entry) {
+        if (!entry) { setStatus("Dibatalkan."); return null; }
+        return entry.read({ format: "binary" }).then(function (bytes) {
+          log("Mengirim " + entry.name + " ke Font Manager…");
+          return FM.install(entry.name, bytes);
+        }).then(function (r) {
+          if (!r) return null;
+          if (!r.ok) {
+            setStatus("Pemasangan ditolak Font Manager.", "err");
+            log("!! Pasang font: HTTP " + r.status + " " + (r.text || "").slice(0, 140));
+            return null;
+          }
+          log("Font Manager: " + (r.text || "ok").slice(0, 140));
+          return FM.scan().then(function () {
+            return PS.loadFonts().then(function (res) {
+              state.fonts = res;
+              state.fonts.loaded = true;
+              renderAll();
+              setStatus("Font dipasang: " + entry.name + " \u2014 " + (res.ok ? res.famCount + " keluarga terbaca." : "baca ulang font gagal."), res.ok ? "ok" : "err");
+            });
+          });
+        }, function (e) {
+          setStatus("Pemasangan font gagal.", "err");
+          log("!! Pasang font: " + msgOf(e));
+          return null;
+        });
+      }, function (e) {
+        setStatus("Pemilih berkas gagal dibuka.", "err");
+        log("!! Pilih font: " + msgOf(e));
+      });
+      break;
+    }
+
+    case "fm-open": {
+      var opened = FM.open();
+      setStatus(opened ? "Font Manager dibuka di peramban." : "Panel tidak bisa membuka peramban — buka http://127.0.0.1:4317 manual.", opened ? "ok" : "err");
       break;
     }
 
