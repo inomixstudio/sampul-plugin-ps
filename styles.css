@@ -622,7 +622,7 @@ ol { list-style: none; }
 
 .rules { margin: 6px 0 10px; }
 
-.rules li {
+.rule {
   font-size: 10.5px;
   color: #a9b3c1;
   line-height: 1.5;
@@ -630,6 +630,59 @@ ol { list-style: none; }
   border-top: 1px solid #1e232b;
 }
 
-.rules li b { color: #e7eaf0; }
+.rk { color: #e7eaf0; }
 
-.rules li:first-child { border-top: 0; }
+.rule:first-child { border-top: 0; }
+
+/* ---------- picker: pengganti <select> (UXP tidak menjamin kontrol native) ---------- */
+
+.chip.wide {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border-radius: 8px;
+  padding: 7px 10px;
+  margin: 0 0 6px;
+}
+
+.pick-pop {
+  margin: 0 0 8px;
+  border: 1px solid #2b303a;
+  border-radius: 8px;
+  background: #12161d;
+  padding: 6px;
+}
+
+.pick-list {
+  max-height: 210px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.pick-opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  color: #b4bdc9;
+}
+
+.pick-opt:hover { background: #1b212a; color: #e7eaf0; }
+.pick-opt.is-on { background: #2a2213; color: #f4d79b; }
+.pick-empty { font-size: 10.5px; color: #7d879a; padding: 6px 8px; }
+.pick-foot { font-size: 9.5px; color: #6f7887; padding: 4px 8px 0; }
+
+.palette-tail { display: flex; align-items: center; }
+
+.card-x {
+  margin-left: 6px;
+  font-size: 10px;
+  color: #7d879a;
+  border: 1px solid #2b303a;
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+.card-x:hover { color: #f0a9a1; border-color: #4a2b2b; }

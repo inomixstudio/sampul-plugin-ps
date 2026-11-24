@@ -1,0 +1,18 @@
+{
+  "name": "photoshop-sampul",
+  "version": "1.3.0",
+  "private": true,
+  "description": "Panel UXP Photoshop: palet & tipografi untuk sampul buku",
+  "keywords": ["photoshop", "uxp", "plugin", "sampul", "buku", "palet", "tipografi"],
+  "license": "MIT",
+  "author": "99 Desains",
+  "main": "main.js",
+  "scripts": {
+    "test": "node scripts/selftest.js",
+    "check": "node --check main.js && node --check scripts/selftest.js && node --check scripts/sync.js && node --check scripts/mkicons.js",
+    "sync": "node scripts/sync.js",
+    "icons": "node scripts/mkicons.js"
+  },
+  "engines": { "node": ">=18" },
+  "files": ["manifest.json", "index.html", "main.js", "styles.css", "icons/", "README.md"]
+}

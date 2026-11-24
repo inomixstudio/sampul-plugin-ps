@@ -60,23 +60,18 @@
             <span class="fold-caret">&#8250;</span>
           </button>
           <div class="fold-body" id="genBody">
-            <div class="field-row">
-              <label class="field">
-                <span>Warna dasar</span>
-                <input id="genHex" class="input" value="#A6392E" spellcheck="false" />
-              </label>
-              <label class="field">
-                <span>Harmoni</span>
-                <select id="genScheme" class="input select"></select>
-              </label>
-            </div>
             <label class="field">
-              <span>Nada</span>
-              <select id="genTone" class="input select">
-                <option value="dark">Gelap</option>
-                <option value="light">Terang</option>
-              </select>
+              <span>Warna dasar</span>
+              <input id="genHex" class="input" value="#A6392E" spellcheck="false" />
             </label>
+            <div class="field">
+              <span>Harmoni</span>
+              <div class="chips" id="schemeChips"></div>
+            </div>
+            <div class="field">
+              <span>Nada</span>
+              <div class="chips" id="toneChips"></div>
+            </div>
             <div class="hue-dots" id="genHues"></div>
             <button class="btn primary block-btn" data-act="generate">Buat palet</button>
           </div>
@@ -118,8 +113,11 @@
           <label class="field"><span>Judul</span><input id="fTitle" class="input" /></label>
           <label class="field"><span>Subjudul</span><input id="fSubtitle" class="input" /></label>
           <label class="field"><span>Penulis</span><input id="fAuthor" class="input" /></label>
-          <label class="field"><span>Ukuran kanvas</span><select id="fPreset" class="input select"></select></label>
-          <label class="check"><input type="checkbox" id="fFill" /><span>Isi latar dengan warna dasar palet</span></label>
+          <div class="field">
+            <span>Ukuran kanvas</span>
+            <div class="chips" id="presetChips"></div>
+          </div>
+          <button class="chip wide" id="fFill" data-act="toggle-fill">Isi latar dengan warna dasar palet</button>
         </div>
 
         <div class="btn-row">
@@ -133,6 +131,8 @@
             <button class="btn small" data-act="fg-base">FG = latar</button>
             <button class="btn small" data-act="bg-accent">BG = aksen</button>
             <button class="btn small" data-act="tint-text">Warnai teks terpilih</button>
+            <button class="btn small" data-act="selftest">Uji aksi Photoshop</button>
+            <button class="btn small" data-act="prune-custom">Bersihkan palet simpanan</button>
           </div>
           <p class="lede" id="psState"></p>
         </div>
@@ -153,18 +153,18 @@
       </div>
       <div class="overlay-body">
         <p class="lede">Rasa sebuah sampul ditentukan tiga hal: kontras, bentuk huruf, dan suhu warna. Aturan praktisnya:</p>
-        <ol class="rules">
-          <li><b>Tegas</b> &mdash; kontras tinggi, kapital sempit (Bebas, Anton, Archivo Black), aksen menyala.</li>
-          <li><b>Elegan</b> &mdash; serif ber-kontras tinggi (Playfair, Didone), ruang kosong lega, warna netral.</li>
-          <li><b>Hangat</b> &mdash; hue 20&deg;&ndash;60&deg; (krem, terakota, emas) dengan saturasi rendah.</li>
-          <li><b>Misterius</b> &mdash; latar sangat gelap, satu aksen terang, teks sedikit.</li>
-          <li><b>Minimal</b> &mdash; satu warna + dua ukuran huruf, tanpa ornamen.</li>
-          <li><b>Ceria</b> &mdash; pastel, bentuk membulat, huruf rounded (Baloo, Nunito).</li>
-          <li><b>Nostalgik</b> &mdash; kertas krem, tinta gelap hangat, serif lama, aksen pudar.</li>
-          <li><b>Romantis</b> &mdash; skrip tipis atau serif italic, blush/rose, banyak ruang napas.</li>
-          <li><b>Dramatis</b> &mdash; satu warna pekat + emas/perunggu, judul besar mendominasi.</li>
-          <li><b>Futuristik</b> &mdash; hitam/putih dingin + aksen sian, huruf geometris atau mono.</li>
-        </ol>
+        <div class="rules">
+          <div class="rule"><span class="rk">Tegas</span> &mdash; kontras tinggi, kapital sempit (Bebas, Anton, Archivo Black), aksen menyala.</div>
+          <div class="rule"><span class="rk">Elegan</span> &mdash; serif ber-kontras tinggi (Playfair, Didone), ruang kosong lega, warna netral.</div>
+          <div class="rule"><span class="rk">Hangat</span> &mdash; hue 20&deg;&ndash;60&deg; (krem, terakota, emas) dengan saturasi rendah.</div>
+          <div class="rule"><span class="rk">Misterius</span> &mdash; latar sangat gelap, satu aksen terang, teks sedikit.</div>
+          <div class="rule"><span class="rk">Minimal</span> &mdash; satu warna + dua ukuran huruf, tanpa ornamen.</div>
+          <div class="rule"><span class="rk">Ceria</span> &mdash; pastel, bentuk membulat, huruf rounded (Baloo, Nunito).</div>
+          <div class="rule"><span class="rk">Nostalgik</span> &mdash; kertas krem, tinta gelap hangat, serif lama, aksen pudar.</div>
+          <div class="rule"><span class="rk">Romantis</span> &mdash; skrip tipis atau serif italic, blush/rose, banyak ruang napas.</div>
+          <div class="rule"><span class="rk">Dramatis</span> &mdash; satu warna pekat + emas/perunggu, judul besar mendominasi.</div>
+          <div class="rule"><span class="rk">Futuristik</span> &mdash; hitam/putih dingin + aksen sian, huruf geometris atau mono.</div>
+        </div>
         <p class="lede">Patokan angka: 60% latar, 30% blok, 10% aksen. Kontras judul minimal 3:1 (huruf besar) atau 4,5:1 (huruf kecil). Maksimal dua keluarga font per sampul.</p>
       </div>
     </div>

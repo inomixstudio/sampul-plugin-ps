@@ -1,16 +1,38 @@
 {
   "id": "com.99desains.sampul",
   "name": "Sampul - Palet & Tipografi",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "main": "index.html",
   "manifestVersion": 5,
   "host": {
     "app": "PS",
     "minVersion": "24.0.0"
   },
-  "requiredPermissions": {
-    "localFileSystem": "plugin"
+  "developer": {
+    "id": "com.99desains",
+    "name": "99 Desains"
   },
+  "requiredPermissions": {
+    "localFileSystem": "none"
+  },
+  "icons": [
+    {
+      "width": 20,
+      "height": 20,
+      "path": "icons/icon_D.png",
+      "scale": [1, 2],
+      "theme": ["dark", "darkest"],
+      "species": ["generic"]
+    },
+    {
+      "width": 20,
+      "height": 20,
+      "path": "icons/icon_N.png",
+      "scale": [1, 2],
+      "theme": ["lightest", "light"],
+      "species": ["generic"]
+    }
+  ],
   "entrypoints": [
     {
       "type": "panel",
@@ -28,11 +50,11 @@
       },
       "preferredDockedSize": {
         "width": 360,
-        "height": 780
+        "height": 820
       },
       "preferredFloatingSize": {
         "width": 380,
-        "height": 820
+        "height": 860
       }
     }
   ]
