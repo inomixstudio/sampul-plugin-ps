@@ -13,7 +13,7 @@ Alurnya: pilih **kategori** (sastra, thriller, anak, …) dan **rasa** yang ditu
 | Cara aktif | disalin ke `%APPDATA%\Adobe\UXP\Plugins\External\com.99desains.sampul` + **Developer Mode** |
 | Izin | `clipboard: "readAndWrite"` + `localFileSystem: "fullAccess"` + `network: { domains: ["http://127.0.0.1:4317"] }` — hanya ke Font Manager lokal, tidak ada tujuan lain |
 | Aktif di | Photoshop Beta 28.2 — tercatat di log UXP: `Number of plugins added from user's fallback: 1`, tanpa error manifest/ikon |
-| Ukuran | ± 125 KB (5 file + 6 ikon + skrip) |
+| Ukuran | ± 169 KB sumber (10 berkas terpaket); `.ccx` ± 47 KB |
 | Uji mandiri | `node scripts/selftest.js` → 122 pemeriksaan, tanpa Photoshop |
 | Master | folder ini. Salinan terinstal dibuat ulang dengan `npm run sync` |
 
@@ -33,9 +33,10 @@ Membuka panel: menu **Plugins → Sampul**. Kalau tidak muncul, restart Photosho
 | `scripts/selftest.js` | uji regresi: matematika warna, geometri liput penuh, ekstraksi, proyek, bentuk deskriptor batchPlay |
 | `scripts/sync.js` | menyalin master ke folder External + membuang berkas usang |
 | `scripts/mkicons.js` | membuat 6 PNG ikon dari skrip (termasuk varian `@1x`) |
-| `package.json` | `npm test`, `npm run check`, `npm run sync`, `npm run icons` |
+| `scripts/build.js` | membuat paket distribusi `.ccx` (ZIP) tanpa dependensi |
+| `package.json` | `npm test`, `npm run check`, `npm run build`, `npm run sync`, `npm run icons` |
 
-Tidak ada dependensi, tidak ada build step.
+Tidak ada dependensi. `npm run build` membuat `.ccx` tanpa alat tambahan.
 
 ---
 
@@ -59,6 +60,22 @@ Catatan: kalau plugin ini juga ada di folder `External`, menu bisa muncul dua ka
 Berhenti memakai: hapus foldernya dari `External`. Developer Mode sebaiknya dimatikan lagi (Preferences → Plugins) karena mode itu juga memuat plugin tak bertanda tangan lain. Cadangan setelan asli tersimpan sebagai `UIPrefs.psp.bak-sampul` di folder setting Photoshop Beta.
 
 > Di browser biasa panel berjalan dalam **mode demo**: semua tombol hidup, aksi Photoshop hanya dicatat di log.
+
+---
+
+## Distribusi `.ccx`
+
+`npm run build` membuat `dist/com.99desains.sampul_PS.ccx` — ZIP biasa berisi `manifest.json` di akar + panel + ikon. Tidak perlu sertifikat dan tidak perlu akun Adobe; `.ccx` berbeda dari `.zxp` (CEP).
+
+Memasang di komputer pengguna:
+
+1. Klik dua kali `.ccx` → Creative Cloud Desktop menampilkan peringatan "paket dari luar Marketplace" → **Install**.
+2. Atau lewat UPIA: `UnifiedPluginInstallerAgent.exe /install "…\com.99desains.sampul_PS.ccx"` (folder `C:\Program Files\Common Files\Adobe\Adobe Desktop Common\RemoteComponents\UPI\UnifiedPluginInstallerAgent`).
+3. Periksa: `UnifiedPluginInstallerAgent.exe /list all` → baris `com.99desains.sampul`, lalu buka Photoshop → **Plugins → Sampul**.
+
+**Penting — Photoshop Beta bukan target `.ccx`.** Paket ini memakai `host.app = "PS"`, yang oleh UPIA dipetakan ke **PHSP** (Photoshop rilis) dan **PHSPPR** (Prerelease). Komputer yang hanya punya **Photoshop (Beta)** (`PHSPBETA`) ditolak dengan `Failed to install, status = -411` ("Compatible Creative Cloud app not found") — persis yang terjadi di mesin uji ini. Untuk Beta, pakai Opsi A (UXP Developer Tool) atau Opsi B (folder `External`); keduanya berjalan.
+
+`.ccx` ini tidak ditandatangani; Windows SmartScreen bisa memperingatkan. Tanda tangan Adobe hanya diperlukan untuk distribusi lewat Marketplace.
 
 ---
 
@@ -169,6 +186,7 @@ Untuk pasangan font: objek dengan `heading` + `body` — `family`, `aliases` (na
 | **Pasang font** bilang "Font Manager tidak terdeteksi" | jalankan `start.bat` di `Documents\Font` dulu (server di port 4317), lalu tekan **Cek Font Manager** |
 | Pemasangan font ditolak | berkas harus `.ttf/.otf/.ttc/.otc` asli (bukan hasil rename); server Font Manager harus versi yang sudah mendukung origin `uxp:` |
 | `Expected the host attribute to be an object` | UXP 10 minta `host` objek, bukan array — sudah diperbaiki di `manifest.json` |
+| `.ccx` gagal: `Failed to install, status = -411` | UPIA tidak menemukan aplikasi tujuan: paket menargetkan Photoshop rilis (PHSP)/Prerelease (PHSPPR), sedangkan yang terpasang hanya Photoshop Beta (PHSPBETA). Pasang di Photoshop rilis, atau pakai Developer Tool/folder `External` untuk Beta |
 | Data lama tampil aneh | **Bersihkan palet simpanan**, atau hapus `%APPDATA%\Adobe\UXP\PluginsStorage\PHSPBETA\28\External\com.99desains.sampul` |
 
 ---
@@ -180,6 +198,7 @@ Untuk pasangan font: objek dengan `heading` + `body` — `family`, `aliases` (na
 - *Data (koreksi penting)*: tebal kertas v1.4.0 keliru. Dipakai angka **resmi KDP**: putih 0,002252 in/hal, krem 0,0025, warna premium 0,002347 (v1.4.0 memakai 0,0025/0,003125/0,004 — punggung jadi terlalu lebar). Jumlah halaman kini dibulatkan ke genap seperti aturan cetak.
 - *Format*: **IngramSpark** ditambahkan (bleed 0,125 in, min 18 hal, maks 1200) dengan perkiraan PPI stok (putih 444, krem 400) + peringatan tetap untuk mencocokkan template resmi; peringatan halaman maksimum format.
 - *Teruji*: transport Font Manager diuji dari klien Chromium lintas-origin (preflight, POST biner, anti-CSRF `X-FM-Request` tetap menolak tanpa header); selftest 122 pemeriksaan.
+- *Distribusi*: `npm run build` membuat `dist/com.99desains.sampul_PS.ccx` tanpa dependensi (ZIP ditulis sendiri, `manifest.json` sebagai entri pertama); isi paket diverifikasi sama persis dengan sumber.
 
 **1.4.0** — cetak & ekspor
 - *Fitur*: liput penuh (bleed + punggung + trim) untuk KDP/BookBaby/offset dengan tebal kertas putih/krem/warna premium, peringatan halaman minimum & lebar punggung, garis panduan trim/bleed, dan teks punggung otomatis diputar 90° (dilewati bila punggung terlalu sempit).
