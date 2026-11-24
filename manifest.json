@@ -13,7 +13,7 @@
     "name": "99 Desains"
   },
   "requiredPermissions": {
-    "localFileSystem": "none"
+    "clipboard": "readAndWrite"
   },
   "icons": [
     {

@@ -11,7 +11,7 @@ Alurnya: pilih **kategori** (sastra, thriller, anak, …) dan **rasa** yang ditu
 | Versi | **1.3.0** (manifest v5) |
 | Host teruji | Adobe Photoshop (Beta) **28.2** — UXP 10 |
 | Cara aktif | disalin ke `%APPDATA%\Adobe\UXP\Plugins\External\com.99desains.sampul` + **Developer Mode** |
-| Izin | `localFileSystem: "none"` (tidak sentuh disk), tanpa jaringan, tanpa dependensi |
+| Izin | hanya `clipboard: "readAndWrite"` (dipakai panel bawaan Adobe juga) — tidak sentuh disk, tidak ada jaringan, tanpa dependensi |
 | Ukuran | ± 110 KB (5 file + 4 ikon + 1 skrip uji) |
 | Uji mandiri | `node scripts/selftest.js` → 60 pemeriksaan, tanpa Photoshop |
 | Master | folder ini. Salinan terinstal dibuat ulang dengan `npm run sync` |
@@ -82,7 +82,8 @@ Berhenti memakai: hapus foldernya dari `External`. Developer Mode sebaiknya dima
 - **Bangun sampul baru** → dokumen 300 dpi, latar warna dasar, tiga layer teks pada posisi proporsional. Ukuran judul dihitung dari **jumlah baris** (anggaran ±30% tinggi kanvas) dan lebar baris terpanjang.
 - **Teks ke dokumen aktif** → menambah layer teks ke dokumen yang terbuka.
 - **Uji aksi Photoshop** → menjalankan tiap deskriptor batchPlay satu per satu (ambil/set foreground, baca ukuran dokumen lewat AM, baca daftar font, buat + geser + tutup dokumen uji tanpa menyimpan) dan menulis hasilnya ke log. Jalankan ini sekali setelah upgrade Photoshop.
-- Log mencatat setiap aksi; baris diawali `!!` berarti gagal.
+- Log mencatat setiap aksi; baris diawali `!!` berarti gagal. Penyalinan HEX/CSS memakai `navigator.clipboard` (pola panel bawaan Adobe) lalu jatuh ke `uxp.clipboard` dan `execCommand`; log menyebut jalur mana yang berhasil.
+- Dari konsol UXP Developer Tool bisa diakses lewat `SAMPUL.state`, `SAMPUL.PRESETS`, `SAMPUL.ps.selfTest(...)`.
 
 ---
 

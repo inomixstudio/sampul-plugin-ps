@@ -264,11 +264,16 @@ t("set warna memakai _ref: color (sesuai kode Adobe)", has(/_ref:\s*"color",\s*_
 t("kirim ke belakang memakai ordinal back", has(/_ref:\s*"layer",\s*_enum:\s*"ordinal",\s*_value:\s*"back"/));
 t("ada uji aksi di panel", has(/function runSelfTest/) && has(/selfTest:\s*selfTest/));
 
+t("penyalinan menunggu hasil clipboard", has(/function copyWithStatus\(/) && has(/return viaNav\(\)\.then\(/));
+t("ada pegang debug untuk konsol UXP", has(/window\.SAMPUL\s*=/));
+
 section("== 10. Bawaan lama yang harus hilang ==");
 t("README tidak lagi mengklaim 94 KB", fs.readFileSync(path.join(ROOT, "README.md"), "utf8").indexOf("94 KB") < 0);
 const man = JSON.parse(fs.readFileSync(path.join(ROOT, "manifest.json"), "utf8"));
 t("manifest v1.3.0", man.version === "1.3.0", "-> " + man.version);
-t("manifest tanpa izin file system", man.requiredPermissions.localFileSystem === "none", "-> " + man.requiredPermissions.localFileSystem);
+t("manifest: tanpa izin file system, izin clipboard sesuai panel bawaan Adobe",
+  man.requiredPermissions.localFileSystem === undefined && man.requiredPermissions.clipboard === "readAndWrite",
+  "-> " + JSON.stringify(man.requiredPermissions));
 t("manifest punya ikon", Array.isArray(man.icons) && man.icons.length === 2);
 t("file ikon ada", ["icon_D.png", "icon_D@2x.png", "icon_N.png", "icon_N@2x.png"].every(function (f) { return fs.existsSync(path.join(ROOT, "icons", f)); }));
 t("host berupa objek (bukan array)", !Array.isArray(man.host) && man.host.app === "PS");

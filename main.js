@@ -1803,29 +1803,52 @@ function buildCover(mode) {
   log("Bangun sampul: " + palette.name + " + " + fontLabel(pairing) + (mode === "new" ? " (dokumen baru)" : " (dokumen aktif)"));
 }
 
+/* Menyalin sambil menunggu hasilnya. v1.2 memanggil clipboard tanpa menunggu,
+   jadi status "Disalin" bisa muncul padahal gagal. navigator.clipboard dipakai
+   lebih dulu karena itu yang dipakai panel bawaan Photoshop. */
 function copyText(text) {
-  try {
-    if (PS.uxp && PS.uxp.clipboard && typeof PS.uxp.clipboard.copy === "function") {
-      PS.uxp.clipboard.copy(text);
-      return true;
+  var txt = String(text === null || text === undefined ? "" : text);
+
+  function viaNav() {
+    if (!navigator || !navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+      return Promise.reject(new Error("navigator.clipboard tidak ada"));
     }
-  } catch (e) { /* lanjut */ }
-  try {
-    if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch (e) { /* lanjut */ }
-  try {
-    var ta = document.createElement("textarea");
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-    return true;
-  } catch (e) { /* gagal */ }
-  return false;
+    return Promise.resolve(navigator.clipboard.writeText(txt));
+  }
+  function viaUxp() {
+    var cb = PS.uxp && PS.uxp.clipboard;
+    if (!cb) return Promise.reject(new Error("uxp.clipboard tidak ada"));
+    if (typeof cb.writeText === "function") return Promise.resolve(cb.writeText(txt));
+    if (typeof cb.copy === "function") return Promise.resolve(cb.copy(txt));
+    return Promise.reject(new Error("uxp.clipboard tanpa metode tulis"));
+  }
+  function viaArea() {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = txt;
+      document.body.appendChild(ta);
+      ta.select();
+      var done = document.execCommand ? document.execCommand("copy") : false;
+      document.body.removeChild(ta);
+      return done ? Promise.resolve() : Promise.reject(new Error("execCommand ditolak"));
+    } catch (e) { return Promise.reject(e); }
+  }
+
+  return viaNav().then(function () { return "navigator.clipboard"; }, function () {
+    return viaUxp().then(function () { return "uxp.clipboard"; }, function () {
+      return viaArea().then(function () { return "execCommand"; }, function () { return null; });
+    });
+  }).then(function (via) {
+    if (via) log("Salin via " + via + ": " + txt.split("\n")[0].slice(0, 46));
+    return !!via;
+  });
+}
+
+function copyWithStatus(text, okMsg) {
+  setStatus("Menyalin…");
+  copyText(text).then(function (ok) {
+    setStatus(ok ? okMsg : "Tidak bisa menyalin — clipboard ditolak lingkungan.", ok ? "ok" : "err");
+  });
 }
 
 function cssForPalette(p) {
@@ -1937,35 +1960,29 @@ function handleAction(act, el) {
 
     case "copy-hex":
       p = currentPalette();
-      hex = p.colors[role];
-      if (copyText(hex)) setStatus("Disalin: " + hex, "ok");
-      else setStatus("Tidak bisa menyalin.", "err");
+      hex = normHex(p.colors[role]) || p.colors[role];
+      copyWithStatus(hex, "Disalin: " + hex);
       break;
 
     case "copy-css":
       if (el.getAttribute("data-scope") === "palette") {
-        copyText(cssForPalette(currentPalette()));
-        setStatus("CSS palet disalin.", "ok");
+        copyWithStatus(cssForPalette(currentPalette()), "CSS palet disalin.");
       } else {
         pair = findById(PAIRINGS, id) || currentPairing();
-        copyText(pairingCSS(pair));
-        setStatus("CSS tipografi disalin.", "ok");
+        copyWithStatus(pairingCSS(pair), "CSS tipografi disalin.");
       }
       break;
 
     case "copy-fonts":
       pair = findById(PAIRINGS, id) || currentPairing();
-      if (copyText(pair.heading.family + " (judul) + " + pair.body.family + " (teks)")) {
-        setStatus("Nama font disalin.", "ok");
-      }
+      copyWithStatus(pair.heading.family + " (judul) + " + pair.body.family + " (teks)", "Nama font disalin.");
       break;
 
     case "copy-font-list": {
       var fams = Object.keys(state.fonts.byFamily).map(function (k) { return state.fonts.byFamily[k].family; });
       if (!fams.length) { setStatus("Daftar font belum dibaca.", "err"); break; }
       fams.sort();
-      copyText(fams.join("\n"));
-      setStatus(fams.length + " nama font disalin.", "ok");
+      copyWithStatus(fams.join("\n"), fams.length + " nama font disalin.");
       break;
     }
 
